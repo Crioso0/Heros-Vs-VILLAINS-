@@ -24,6 +24,11 @@ export class BattleRenderer {
   /** Card being dragged, drawn under the cursor. */
   carrying: { heroId: string; x: number; y: number } | null = null;
   carryingLeaf: { x: number; y: number } | null = null;
+  /** Hero ids that can take a Leaf right now, highlighted while carrying one. */
+  leafTargets: number[] | null = null;
+  /** 0..1 squash-and-stretch on the counters when something lands in them. */
+  solarPunch = 0;
+  leafPunch = 0;
 
   consume(events: SimEvent[], state: BattleState): void {
     // Overdrive fires every hero's ultimate at once; ten "LEAF MODE" labels on
@@ -59,9 +64,21 @@ export class BattleRenderer {
         case 'overdrive':
           this.fx.popText(VIEW.w / 2, by(state.rows * 0.5), 'OVERDRIVE', UI.gold);
           break;
-        case 'collect':
-          this.fx.burst(bx(ev.x), by(ev.y), 8, ev.kind === 'solar' ? UI.solar : UI.leaf, 0.6);
+        case 'collect': {
+          const col = ev.kind === 'solar' ? UI.solar : UI.leaf;
+          this.fx.burst(bx(ev.x), by(ev.y), 14, col, 0.9);
+          this.fx.ring(bx(ev.x), by(ev.y), 34, col);
+          this.fx.popText(
+            bx(ev.x),
+            by(ev.y) - 26,
+            ev.kind === 'solar' ? `+${ev.value}` : 'LEAF',
+            col,
+          );
+          // Punch the counter the value is flying toward.
+          if (ev.kind === 'solar') this.solarPunch = 1;
+          else this.leafPunch = 1;
           break;
+        }
         case 'drone':
           this.fx.burst(BOARD.x - Math.min(30, BOARD.cellW * 0.28), by(ev.row + 0.5), 16, '#cfd8dc', 1);
           break;
@@ -80,6 +97,8 @@ export class BattleRenderer {
   draw(c: CanvasRenderingContext2D, state: BattleState, dt: number): void {
     this.time += dt;
     this.fx.update(dt);
+    this.solarPunch = Math.max(0, this.solarPunch - dt * 3.2);
+    this.leafPunch = Math.max(0, this.leafPunch - dt * 3.2);
     const world = worldDef(state.worldId);
 
     const shake = this.fx.shakeOffset();
@@ -320,11 +339,21 @@ export class BattleRenderer {
     if (h.hp < h.maxHp) {
       drawHealthBar(c, x, healthBarY(h.row), BOARD.cellW * 0.6, h.hp / h.maxHp, UI.leaf);
     }
-    if (this.hoverHero === h.id && this.carryingLeaf) {
-      c.strokeStyle = UI.leaf;
-      c.lineWidth = 3;
+    // While a Leaf is in hand, every hero that can take it pulses, and the one
+    // under the finger is picked out. Without this the player has to guess.
+    if (this.carryingLeaf && this.leafTargets?.includes(h.id)) {
+      const hot = this.hoverHero === h.id;
+      const pulse = 0.55 + Math.sin(this.time * 7) * 0.45;
+      c.save();
+      c.strokeStyle = alpha(UI.leaf, hot ? 1 : 0.35 + pulse * 0.35);
+      c.lineWidth = hot ? 4 : 2.5;
       roundRect(c, bx(h.col) + 4, by(h.row) + 4, BOARD.cellW - 8, BOARD.cellH - 8, 10);
       c.stroke();
+      if (hot) {
+        c.fillStyle = alpha(UI.leaf, 0.18);
+        c.fill();
+      }
+      c.restore();
     }
   }
 
@@ -503,43 +532,121 @@ export class BattleRenderer {
 
   private drawPickups(c: CanvasRenderingContext2D, state: BattleState): void {
     for (const p of state.pickups) {
-      let x = bx(p.x);
-      let y = by(p.y);
+      // A stable per-orb phase so they do not all bob in lockstep.
+      const phase = (p.id % 17) * 0.37;
+      const bob = Math.sin(this.time * 2.1 + phase) * 5;
+      const sway = Math.cos(this.time * 1.3 + phase) * 3;
+
+      let x = bx(p.x) + sway;
+      let y = by(p.y) + bob;
       let scale = 1;
+      let fade = 1;
+
       if (p.claimed) {
+        // Arc into the counter rather than sliding flat: the curve is most of
+        // what makes the collection read as "it went somewhere".
         const t = clamp(p.claimT / 0.45, 0, 1);
+        const e = t * t * (3 - 2 * t);
         const target = pickupTarget(p.kind);
-        x += (target.x - x) * t;
-        y += (target.y - y) * t;
-        scale = 1 - t * 0.5;
+        const sx = bx(p.x);
+        const sy = by(p.y);
+        const lift = Math.sin(t * Math.PI) * 90;
+        x = sx + (target.x - sx) * e;
+        y = sy + (target.y - sy) * e - lift;
+        scale = 1 - t * 0.45;
+        fade = 1 - t * 0.25;
+        // Comet trail.
+        if (t < 0.9 && Math.random() < 0.7) {
+          this.fx.burst(x, y, 1, p.kind === 'solar' ? UI.solar : UI.leaf, 0.25);
+        }
       }
-      const blink = p.life < 4 && Math.sin(p.life * 18) < 0 ? 0.35 : 1;
+
+      // Fade-out warning before it expires, so a missed orb is legible.
+      const blink = !p.claimed && p.life < 4 ? 0.55 + Math.sin(p.life * 14) * 0.45 : 1;
+
       c.save();
-      c.globalAlpha = blink;
+      c.globalAlpha = blink * fade;
       c.translate(x, y);
       c.scale(scale, scale);
+
       if (p.kind === 'solar') {
-        const g = c.createRadialGradient(0, 0, 2, 0, 0, 26);
-        g.addColorStop(0, '#fffbe0');
-        g.addColorStop(0.4, UI.solar);
-        g.addColorStop(1, alpha(UI.solar, 0));
-        c.fillStyle = g;
-        ellipse(c, 0, 0, 26, 26);
+        const pulse = 1 + Math.sin(this.time * 3.4 + phase) * 0.09;
+        // Wide soft halo so it separates from a bright or busy backdrop.
+        const halo = c.createRadialGradient(0, 0, 4, 0, 0, 46 * pulse);
+        halo.addColorStop(0, alpha('#fff8d0', 0.55));
+        halo.addColorStop(0.35, alpha(UI.solar, 0.35));
+        halo.addColorStop(1, alpha(UI.solar, 0));
+        c.fillStyle = halo;
+        ellipse(c, 0, 0, 46 * pulse, 46 * pulse);
         c.fill();
-        c.fillStyle = '#fff6c9';
-        ellipse(c, 0, 0, 11, 11);
+
+        // Slowly turning rays.
+        c.save();
+        c.rotate(this.time * 0.6 + phase);
+        c.strokeStyle = alpha('#fff3b0', 0.8);
+        c.lineWidth = 3;
+        c.lineCap = 'round';
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          const r0 = 16;
+          const r1 = 24 + Math.sin(this.time * 4 + i + phase) * 4;
+          c.beginPath();
+          c.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+          c.lineTo(Math.cos(a) * r1, Math.sin(a) * r1);
+          c.stroke();
+        }
+        c.restore();
+
+        // Core.
+        const core = c.createRadialGradient(-3, -3, 1, 0, 0, 15);
+        core.addColorStop(0, '#ffffff');
+        core.addColorStop(0.4, '#fff3b0');
+        core.addColorStop(1, shade(UI.solar, -0.15));
+        c.fillStyle = core;
+        ellipse(c, 0, 0, 15, 15);
         c.fill();
+        c.strokeStyle = alpha('#fffbe0', 0.9);
+        c.lineWidth = 1.5;
+        c.stroke();
+
+        // Specular glint.
+        c.fillStyle = alpha('#ffffff', 0.85);
+        ellipse(c, -5, -5, 4, 3);
+        c.fill();
+
+        // A tap-me ring, so it reads as interactive rather than decorative.
+        if (!p.claimed) {
+          const rt = (this.time * 0.9 + phase) % 1;
+          c.strokeStyle = alpha(UI.solar, (1 - rt) * 0.5);
+          c.lineWidth = 2;
+          c.beginPath();
+          c.arc(0, 0, 18 + rt * 26, 0, Math.PI * 2);
+          c.stroke();
+        }
       } else {
-        const pulse = 1 + Math.sin(p.age * 7) * 0.1;
-        c.scale(pulse, pulse);
-        const g = c.createRadialGradient(0, 0, 2, 0, 0, 28);
-        g.addColorStop(0, '#eaffe4');
-        g.addColorStop(0.4, UI.leaf);
-        g.addColorStop(1, alpha(UI.leaf, 0));
-        c.fillStyle = g;
-        ellipse(c, 0, 0, 28, 28);
+        // Leaves spin and glow harder — they are rarer and worth more.
+        const pulse = 1 + Math.sin(this.time * 6 + phase) * 0.12;
+        const halo = c.createRadialGradient(0, 0, 3, 0, 0, 44 * pulse);
+        halo.addColorStop(0, alpha('#eaffe4', 0.7));
+        halo.addColorStop(0.4, alpha(UI.leaf, 0.4));
+        halo.addColorStop(1, alpha(UI.leaf, 0));
+        c.fillStyle = halo;
+        ellipse(c, 0, 0, 44 * pulse, 44 * pulse);
         c.fill();
-        drawLeafGlyph(c, 0, 0, 16);
+
+        if (!p.claimed) {
+          const rt = (this.time * 1.1 + phase) % 1;
+          c.strokeStyle = alpha(UI.leaf, (1 - rt) * 0.6);
+          c.lineWidth = 2.5;
+          c.beginPath();
+          c.arc(0, 0, 16 + rt * 30, 0, Math.PI * 2);
+          c.stroke();
+        }
+
+        c.save();
+        c.rotate(Math.sin(this.time * 2 + phase) * 0.4);
+        drawLeafGlyph(c, 0, 0, 20 * pulse);
+        c.restore();
       }
       c.restore();
     }
@@ -598,17 +705,45 @@ export class BattleRenderer {
       c.restore();
     }
     if (this.carryingLeaf) {
+      const armed = this.carryingLeaf;
+      // A hint, because a leaf floating under the cursor does not explain
+      // itself the first time you see it.
+      const anyTarget = (this.leafTargets?.length ?? 0) > 0;
       c.save();
-      c.translate(this.carryingLeaf.x, this.carryingLeaf.y);
-      const g = c.createRadialGradient(0, 0, 2, 0, 0, 30);
-      g.addColorStop(0, '#eaffe4');
-      g.addColorStop(0.4, UI.leaf);
-      g.addColorStop(1, alpha(UI.leaf, 0));
-      c.fillStyle = g;
-      ellipse(c, 0, 0, 30, 30);
+      c.globalAlpha = 0.92;
+      const msg = anyTarget ? 'DROP ON A HERO TO UNLEASH' : 'NO HERO CAN USE THIS YET';
+      const w = 300;
+      const hintY = LAYOUT.mode === 'portrait' ? BOARD.y - 44 : BOARD.y - 34;
+      roundRect(c, VIEW.w / 2 - w / 2, hintY, w, 30, 15);
+      c.fillStyle = 'rgba(6,20,10,0.85)';
       c.fill();
-      drawLeafGlyph(c, 0, 0, 18);
+      c.strokeStyle = alpha(UI.leaf, 0.7);
+      c.lineWidth = 2;
+      c.stroke();
+      c.fillStyle = anyTarget ? UI.leaf : UI.danger;
+      c.font = "800 13px 'Trebuchet MS', sans-serif";
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(msg, VIEW.w / 2, hintY + 16, w - 20);
       c.restore();
+
+      if (armed.x > -500) {
+        c.save();
+        c.translate(armed.x, armed.y);
+        const pulse = 1 + Math.sin(this.time * 9) * 0.1;
+        c.scale(pulse, pulse);
+        const g = c.createRadialGradient(0, 0, 2, 0, 0, 42);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.25, '#eaffe4');
+        g.addColorStop(0.5, UI.leaf);
+        g.addColorStop(1, alpha(UI.leaf, 0));
+        c.fillStyle = g;
+        ellipse(c, 0, 0, 42, 42);
+        c.fill();
+        c.rotate(Math.sin(this.time * 3) * 0.25);
+        drawLeafGlyph(c, 0, 0, 24);
+        c.restore();
+      }
     }
   }
 }
@@ -622,9 +757,12 @@ export function drawLeafGlyph(
   c.save();
   c.translate(x, y);
   c.rotate(-0.5);
+  // Bright, with a light rim: against a dark lawn a mid-green leaf on a green
+  // glow disappears into its own halo.
   const g = c.createLinearGradient(-s, -s, s, s);
-  g.addColorStop(0, mix(UI.leaf, '#ffffff', 0.4));
-  g.addColorStop(1, shade(UI.leaf, -0.35));
+  g.addColorStop(0, '#f2ffe8');
+  g.addColorStop(0.45, mix(UI.leaf, '#ffffff', 0.45));
+  g.addColorStop(1, shade(UI.leaf, 0.1));
   c.fillStyle = g;
   c.beginPath();
   c.moveTo(0, -s);
@@ -632,11 +770,15 @@ export function drawLeafGlyph(
   c.quadraticCurveTo(-s * 0.95, -s * 0.35, 0, -s);
   c.closePath();
   c.fill();
-  c.strokeStyle = alpha('#0a3d1c', 0.7);
+  c.strokeStyle = alpha('#ffffff', 0.85);
+  c.lineWidth = Math.max(1, s * 0.09);
+  c.stroke();
+  // Midrib.
+  c.strokeStyle = alpha('#1b6b32', 0.8);
   c.lineWidth = Math.max(1, s * 0.1);
   c.beginPath();
-  c.moveTo(0, -s * 0.85);
-  c.lineTo(0, s * 0.85);
+  c.moveTo(0, -s * 0.8);
+  c.lineTo(0, s * 0.8);
   c.stroke();
   c.restore();
 }

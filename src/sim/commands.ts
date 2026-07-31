@@ -139,7 +139,7 @@ function doCollect(state: BattleState, ctx: SimContext, pickupId: number): boole
     state.leaves = Math.min(9, state.leaves + 1);
     state.overdrive = clamp(state.overdrive + 0.2, 0, 1);
   }
-  emit(ctx, { t: 'collect', kind: p.kind, x: p.x, y: p.y });
+  emit(ctx, { t: 'collect', kind: p.kind, x: p.x, y: p.y, value: p.value });
   emit(ctx, { t: 'sound', id: p.kind === 'solar' ? 'solar' : 'leaf' });
   return true;
 }

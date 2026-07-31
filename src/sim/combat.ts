@@ -97,12 +97,17 @@ export function damageVillain(
     const soaked = Math.min(v.shield, remaining);
     v.shield -= soaked;
     remaining -= soaked;
-    if (v.shield <= 0) emit(ctx, { t: 'hit', x: v.x, y: v.row + 0.5, color: '#c9a227', power: 1.4 });
+    if (v.shield <= 0) {
+      emit(ctx, { t: 'hit', x: v.x, y: v.row + 0.5, color: '#c9a227', power: 1.4 });
+      emit(ctx, { t: 'sound', id: 'shieldBreak' });
+    }
   }
+  let hitArmor = false;
   if (!opts.ignoreArmor && v.armor > 0 && remaining > 0) {
     const soaked = Math.min(v.armor, remaining);
     v.armor -= soaked;
     remaining -= soaked;
+    hitArmor = true;
   }
   if (remaining > 0) v.hp -= remaining;
 
@@ -113,6 +118,7 @@ export function damageVillain(
     y: v.row + 0.5,
     color: opts.color ?? '#ffe9a8',
     power: clamp(amount / 60, 0.25, 2),
+    armor: hitArmor,
   });
 
   if (v.hp <= 0) killVillain(state, ctx, v);

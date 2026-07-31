@@ -1,9 +1,11 @@
 import type { App, Screen } from '../app/app';
 import { Director, directorDeck } from '../ai/director';
+import { AudioDirector } from '../audio/director';
 import { sfx } from '../audio/sfx';
 import { clamp, dist2, pointInRect, type Rect } from '../core/math';
 import { seedFromString } from '../core/rng';
 import { heroDef } from '../content/heroes';
+import { displayName } from '../content/names';
 import { worldDef } from '../content/worlds';
 import { Match } from '../net/match';
 import { BattleRenderer } from '../render/renderer';
@@ -33,6 +35,7 @@ export class BattleScreen implements Screen {
   private renderer = new BattleRenderer();
   private hud = new Hud();
   private director: Director | null = null;
+  private audio = new AudioDirector();
 
   private selectedCard: number | null = null;
   private dragging = false;
@@ -90,6 +93,7 @@ export class BattleScreen implements Screen {
   dispose(): void {
     this.app.onLayoutChange = null;
     this.app.versusStrip = false;
+    this.audio.stop();
   }
 
   /* ---------------------------------------------------------------- *
@@ -113,9 +117,7 @@ export class BattleScreen implements Screen {
 
     const events = this.match.drainEvents();
     this.renderer.consume(events, state);
-    for (const ev of events) {
-      if (ev.t === 'sound') sfx.play(ev.id);
-    }
+    this.audio.update(state, events, dt);
 
     // Hover state for the renderer.
     this.renderer.hover = screenToCell(p.x, p.y, state.cols, state.rows);
@@ -128,6 +130,9 @@ export class BattleScreen implements Screen {
     }
     this.renderer.carryingLeaf = this.carryingLeaf ? { x: p.x, y: p.y } : null;
     this.renderer.hoverHero = this.carryingLeaf ? (this.heroUnder(p.x, p.y)?.id ?? null) : null;
+    this.renderer.leafTargets = this.carryingLeaf
+      ? state.heroes.filter((h) => h.hp > 0 && !!heroDef(h.defId).ultimate).map((h) => h.id)
+      : null;
 
     if (
       this.opts.versus &&
@@ -164,6 +169,8 @@ export class BattleScreen implements Screen {
       selectedVillainCard: this.selectedVillainCard,
       selectedScheme: this.selectedScheme,
       time: this.t,
+      solarPunch: this.renderer.solarPunch,
+      leafPunch: this.renderer.leafPunch,
       progressOverride: this.opts.versus
         ? {
             ratio: clamp(state.time / this.survivalTarget, 0, 1),
@@ -199,8 +206,17 @@ export class BattleScreen implements Screen {
     // otherwise plant a hero there and lose the orb.
     if (p.pressed && !this.carryingLeaf) {
       const pick = this.pickupUnder(p.x, p.y);
-      if (pick) {
-        this.match.issue({ t: 'collect', player: 0, pickupId: pick });
+      if (pick !== null) {
+        this.match.issue({ t: 'collect', player: 0, pickupId: pick.id });
+        // Picking a Leaf off the board arms it immediately — that is what
+        // players try first, and making them then find the tray button is a
+        // step for nothing.
+        if (pick.kind === 'leaf') {
+          this.carryingLeaf = true;
+          this.leafArmedThisPress = true;
+          this.selectedCard = null;
+          this.shovel = false;
+        }
         return;
       }
     }
@@ -283,14 +299,21 @@ export class BattleScreen implements Screen {
 
     if (this.carryingLeaf) {
       if (p.released) {
-        if (this.leafArmedThisPress) {
-          // This is the release of the arming click — stay armed for the drop.
+        const hero = this.heroUnder(p.x, p.y);
+        const moved = Math.hypot(p.x - p.downX, p.y - p.downY) > 24;
+        if (hero) {
+          // Dropped on a hero, whether dragged there or tapped there.
+          this.match.issue({ t: 'leaf', player: 0, heroId: hero.id });
+          this.carryingLeaf = false;
+        } else if (this.leafArmedThisPress && !moved) {
+          // The release of the arming tap: stay armed so the next tap places.
           this.leafArmedThisPress = false;
-        } else {
-          const hero = this.heroUnder(p.x, p.y);
-          if (hero) this.match.issue({ t: 'leaf', player: 0, heroId: hero.id });
+        } else if (moved) {
+          // A real drag that ended on nothing: cancel, like dropping a card.
           this.carryingLeaf = false;
         }
+        // A tap on empty ground while armed keeps the Leaf — losing a Leaf to a
+        // stray tap is far worse than needing a second tap to put it down.
       }
       return;
     }
@@ -371,8 +394,8 @@ export class BattleScreen implements Screen {
     return this.hud.cardRects[index] ?? { x: -1, y: -1, w: 0, h: 0 };
   }
 
-  private pickupUnder(x: number, y: number): number | null {
-    let best: number | null = null;
+  private pickupUnder(x: number, y: number): { id: number; kind: 'solar' | 'leaf' } | null {
+    let best: { id: number; kind: 'solar' | 'leaf' } | null = null;
     const reach = LAYOUT.mode === 'portrait' ? 72 : 52;
     let bestD = reach * reach;
     for (const p of this.match.state.pickups) {
@@ -380,7 +403,7 @@ export class BattleScreen implements Screen {
       const d = dist2(x, y, bx(p.x), by(p.y));
       if (d < bestD) {
         bestD = d;
-        best = p.id;
+        best = { id: p.id, kind: p.kind };
       }
     }
     return best;
@@ -502,7 +525,12 @@ export class BattleScreen implements Screen {
         color: UI.gold,
         weight: 800,
       });
-      text(c, def.name, VIEW.w / 2, statsBottom + 56, { size: 26, align: 'center', weight: 800 });
+      text(c, displayName(def), VIEW.w / 2, statsBottom + 56, {
+        size: 26,
+        align: 'center',
+        weight: 800,
+        maxWidth: r.w - 60,
+      });
       // paragraph() passes x straight to fillText, so a centred paragraph must
       // be given the centre, not the left edge.
       paragraph(c, def.tagline, r.x + r.w / 2, statsBottom + 82, r.w - 120, {

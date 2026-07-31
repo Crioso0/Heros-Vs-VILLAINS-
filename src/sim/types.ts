@@ -97,8 +97,10 @@ export interface HeroAttack {
 
 export interface HeroDef {
   id: HeroId;
-  /** Legally-distinct fan name. */
+  /** The original name created for this project. */
   name: string;
+  /** The character this is a homage to. Shown when NAME_MODE.real is on. */
+  alias?: string;
   /** One-line flavour shown on the card back. */
   tagline: string;
   universe: 'metro' | 'nocturne' | 'cosmic' | 'gamma' | 'street';
@@ -203,7 +205,10 @@ export type VillainAbility =
 
 export interface VillainDef {
   id: VillainId;
+  /** The original name created for this project. */
   name: string;
+  /** The character this is a homage to. Shown when NAME_MODE.real is on. */
+  alias?: string;
   tagline: string;
   faction: 'nocturne' | 'metro' | 'cosmic' | 'gamma' | 'street';
   hp: number;

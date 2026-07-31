@@ -50,8 +50,14 @@ export function triggerUltimate(state: BattleState, ctx: SimContext, hero: HeroE
   hero.ultPhase = 0;
   hero.frozenUntil = 0;
   const glow = def.art.glow ?? def.art.accent;
-  emit(ctx, { t: 'ultimate', x: hero.col + 0.5, y: hero.row + 0.5, heroId: hero.defId, color: glow });
-  emit(ctx, { t: 'sound', id: 'ultimate' });
+  emit(ctx, {
+    t: 'ultimate',
+    x: hero.col + 0.5,
+    y: hero.row + 0.5,
+    heroId: hero.defId,
+    color: glow,
+    ultId: ult.id,
+  });
 
   const lane = () => villainsInRows(state, hero.row, hero.row, 0, 'both');
 

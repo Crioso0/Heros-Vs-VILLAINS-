@@ -15,6 +15,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'solaris',
     name: 'Solaris',
+    alias: 'Firestorm',
     tagline: 'Splits the atom, pays the bills.',
     universe: 'metro',
     role: 'producer',
@@ -41,6 +42,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'sunforge',
     name: 'Sunforge',
+    alias: 'Sunspot',
     tagline: 'Two cores. Double the payroll.',
     universe: 'metro',
     role: 'producer',
@@ -72,6 +74,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'bulwark',
     name: 'Bulwark',
+    alias: 'Luke Cage',
     tagline: 'Unbreakable skin, unshakeable shift schedule.',
     universe: 'street',
     role: 'defender',
@@ -98,6 +101,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'adamant',
     name: 'Adamant',
+    alias: 'The Thing',
     tagline: 'It is clobbering hour, every hour.',
     universe: 'street',
     role: 'defender',
@@ -129,6 +133,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'bluebolt',
     name: 'Bluebolt',
+    alias: 'Blue Beetle',
     tagline: 'Alien tech, teenage attitude.',
     universe: 'metro',
     role: 'shooter',
@@ -159,6 +164,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'frostbane',
     name: 'Frostbane',
+    alias: 'Iceman',
     tagline: 'Room temperature is a suggestion.',
     universe: 'street',
     role: 'shooter',
@@ -195,6 +201,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'trickshot',
     name: 'Trickshot',
+    alias: 'Green Arrow',
     tagline: 'Never misses. Ask him about it. He will tell you.',
     universe: 'street',
     role: 'shooter',
@@ -226,6 +233,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'websnap',
     name: 'Websnap',
+    alias: 'Spider-Man',
     tagline: 'Friendly. Neighbourhood. Extremely annoying to villains.',
     universe: 'street',
     role: 'shooter',
@@ -264,6 +272,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'voltaic',
     name: 'Voltaic',
+    alias: 'Cyborg',
     tagline: 'Half machine. All uptime.',
     universe: 'metro',
     role: 'shooter',
@@ -302,6 +311,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'vanguard',
     name: 'Vanguard',
+    alias: 'Captain America',
     tagline: 'Out of time, never out of position.',
     universe: 'street',
     role: 'shooter',
@@ -333,6 +343,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'nightfall',
     name: 'Nightfall',
+    alias: 'Batman',
     tagline: 'Prepared for everything, including this.',
     universe: 'nocturne',
     role: 'shooter',
@@ -373,6 +384,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'ironclad',
     name: 'Ironclad',
+    alias: 'Iron Man',
     tagline: 'Genius, billionaire, lane defence.',
     universe: 'metro',
     role: 'shooter',
@@ -411,6 +423,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'emerald_warden',
     name: 'Emerald Warden',
+    alias: 'Green Lantern',
     tagline: 'Willpower, rendered in hard light.',
     universe: 'cosmic',
     role: 'shooter',
@@ -451,6 +464,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'paragon',
     name: 'Paragon',
+    alias: 'Superman',
     tagline: 'Faster than the wave meter.',
     universe: 'metro',
     role: 'shooter',
@@ -492,6 +506,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'tempest',
     name: 'Tempest',
+    alias: 'Thor',
     tagline: 'Brings the weather with him.',
     universe: 'cosmic',
     role: 'shooter',
@@ -538,6 +553,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'razorclaw',
     name: 'Razorclaw',
+    alias: 'Wolverine',
     tagline: 'Best there is at what he does. What he does is bite.',
     universe: 'street',
     role: 'melee',
@@ -570,6 +586,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'rampage',
     name: 'Rampage',
+    alias: 'Hulk',
     tagline: 'Anger management, weaponised.',
     universe: 'gamma',
     role: 'melee',
@@ -604,6 +621,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'astraea',
     name: 'Astraea',
+    alias: 'Wonder Woman',
     tagline: 'Diplomacy first. Bracers second.',
     universe: 'cosmic',
     role: 'melee',
@@ -638,6 +656,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'blur',
     name: 'Blur',
+    alias: 'The Flash',
     tagline: 'Already done. Was done before you read this.',
     universe: 'metro',
     role: 'melee',
@@ -673,6 +692,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'lodestone',
     name: 'Lodestone',
+    alias: 'Magneto',
     tagline: 'Your helmet was never really yours.',
     universe: 'cosmic',
     role: 'support',
@@ -707,6 +727,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'tidecaller',
     name: 'Tidecaller',
+    alias: 'Aquaman',
     tagline: 'Talks to fish. Also to your knees.',
     universe: 'cosmic',
     role: 'shooter',
@@ -744,6 +765,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'arcanum',
     name: 'Arcanum',
+    alias: 'Doctor Strange',
     tagline: 'Reads the terms and conditions of reality.',
     universe: 'nocturne',
     role: 'support',
@@ -778,6 +800,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'tripwire',
     name: 'Tripwire',
+    alias: 'Robin',
     tagline: 'Caltrops. Just a lot of caltrops.',
     universe: 'nocturne',
     role: 'hazard',
@@ -810,6 +833,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'fuse',
     name: 'Fuse',
+    alias: 'Nitro',
     tagline: 'Arrives loud. Leaves louder.',
     universe: 'street',
     role: 'instant',
@@ -831,6 +855,7 @@ export const HEROES: HeroDef[] = [
   {
     id: 'inferno',
     name: 'Inferno',
+    alias: 'Human Torch',
     tagline: 'Flame on, lane off.',
     universe: 'street',
     role: 'instant',

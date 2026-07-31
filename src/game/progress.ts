@@ -18,6 +18,8 @@ export interface SaveData {
     sfx: boolean;
     music: boolean;
     reducedFx: boolean;
+    /** Show the characters these are homages to, rather than the codenames. */
+    realNames: boolean;
   };
 }
 
@@ -28,7 +30,7 @@ const DEFAULT_SAVE: SaveData = {
   unlocked: [...STARTER_HEROES],
   cleared: [],
   decks: {},
-  settings: { sfx: true, music: true, reducedFx: false },
+  settings: { sfx: true, music: true, reducedFx: false, realNames: true },
 };
 
 export class Progress {

@@ -2,6 +2,7 @@ import type { App, Screen } from '../app/app';
 import { pointInRect, type Rect } from '../core/math';
 import { sfx } from '../audio/sfx';
 import { HEROES } from '../content/heroes';
+import { displayName, NAME_MODE, subName } from '../content/names';
 import { VILLAINS } from '../content/villains';
 import { backdropLayer } from '../render/backdrops';
 import { drawHero, drawVillain } from '../render/characters';
@@ -164,15 +165,26 @@ export class CodexScreen implements Screen {
         height: 148,
         facing: 1,
       });
-      text(c, locked ? '???' : def.name, dr.x + 190, dr.y + 44, { size: 30, weight: 800 });
+      text(c, locked ? '???' : displayName(def), dr.x + 190, dr.y + 44, {
+        size: 30,
+        weight: 800,
+        maxWidth: bodyW,
+      });
+      if (!locked && subName(def)) {
+        text(c, `a.k.a. ${subName(def)}`, dr.x + 190, dr.y + 64, {
+          size: 11,
+          color: UI.inkDim,
+          weight: 800,
+        });
+      }
       text(
         c,
         `${def.role.toUpperCase()} · ${def.cost} SOLAR · ${def.hp} HP · ${def.recharge}s RECHARGE`,
         dr.x + 190,
-        dr.y + 68,
+        dr.y + 84,
         { size: 12, color: UI.inkDim, weight: 800 },
       );
-      paragraph(c, locked ? 'Not yet recruited.' : def.tagline, dr.x + 190, dr.y + 96, bodyW, {
+      paragraph(c, locked ? 'Not yet recruited.' : def.tagline, dr.x + 190, dr.y + 108, bodyW, {
         size: 14,
       });
       if (def.ultimate && !locked) {
@@ -200,17 +212,24 @@ export class CodexScreen implements Screen {
         shield: def.shield ?? 0,
         attacking: false,
       });
-      text(c, def.name, dr.x + 190, dr.y + 44, { size: 30, weight: 800 });
+      text(c, displayName(def), dr.x + 190, dr.y + 44, { size: 30, weight: 800, maxWidth: bodyW });
+      if (subName(def)) {
+        text(c, `a.k.a. ${subName(def)}`, dr.x + 190, dr.y + 64, {
+          size: 11,
+          color: UI.inkDim,
+          weight: 800,
+        });
+      }
       text(
         c,
         `${def.hp} HP${def.armor ? ` · ${def.armor} ARMOUR` : ''}${
           def.shield ? ` · ${def.shield} SHIELD` : ''
         } · ${def.menace} MENACE`,
         dr.x + 190,
-        dr.y + 68,
+        dr.y + 84,
         { size: 12, color: UI.inkDim, weight: 800 },
       );
-      paragraph(c, def.tagline, dr.x + 190, dr.y + 96, bodyW, { size: 14 });
+      paragraph(c, def.tagline, dr.x + 190, dr.y + 108, bodyW, { size: 14 });
       text(c, `ABILITY · ${abilityLabel(def.ability)}`, colX, colY + 50, {
         size: 15,
         weight: 800,
@@ -223,6 +242,21 @@ export class CodexScreen implements Screen {
     const backRect: Rect = portrait
       ? { x: VIEW.w - 156, y: 24, w: 140, h: 60 }
       : { x: VIEW.w - 180, y: 30, w: 140, h: 40 };
+    // Real names vs. the original set. Persisted with the save.
+    const nameRect: Rect = portrait
+      ? { x: VIEW.w - 316, y: 24, w: 150, h: 60 }
+      : { x: VIEW.w - 340, y: 30, w: 150, h: 40 };
+    if (
+      button(c, p, nameRect, NAME_MODE.real ? 'REAL NAMES' : 'CODENAMES', {
+        small: true,
+        accent: UI.leaf,
+      })
+    ) {
+      NAME_MODE.real = !NAME_MODE.real;
+      this.app.progress.data.settings.realNames = NAME_MODE.real;
+      this.app.progress.save();
+      sfx.play('click');
+    }
     if (button(c, p, backRect, 'BACK', { small: true })) {
       this.app.setScreen(new MenuScreen(this.app));
     }

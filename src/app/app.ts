@@ -1,5 +1,6 @@
 import { sfx } from '../audio/sfx';
 import { resetWeather } from '../render/backdrops';
+import { NAME_MODE } from '../content/names';
 import { Progress } from '../game/progress';
 import { configureLayout, LAYOUT, VIEW, type LayoutMode } from '../render/layout';
 import { createPointer, type PointerState } from '../ui/widgets';
@@ -47,6 +48,8 @@ export class App {
     this.c = ctx;
 
     sfx.enabled = this.progress.data.settings.sfx;
+    sfx.musicEnabled = this.progress.data.settings.music;
+    NAME_MODE.real = this.progress.data.settings.realNames;
 
     this.bindViewport();
     this.bindPointer();

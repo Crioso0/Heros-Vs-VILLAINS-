@@ -2,6 +2,7 @@ import type { App, Screen } from '../app/app';
 import { pointInRect, type Rect } from '../core/math';
 import { sfx } from '../audio/sfx';
 import { heroDef } from '../content/heroes';
+import { displayName } from '../content/names';
 import { worldDef } from '../content/worlds';
 import { backdropLayer } from '../render/backdrops';
 import { drawHero } from '../render/characters';
@@ -102,7 +103,7 @@ export class DeckScreen implements Screen {
         c.restore();
         c.fillStyle = 'rgba(0,0,0,0.72)';
         c.fillRect(r.x, r.y + r.h - 18, r.w, 18);
-        text(c, def.name.toUpperCase(), r.x + r.w / 2, r.y + r.h - 5, {
+        text(c, displayName(def).toUpperCase(), r.x + r.w / 2, r.y + r.h - 5, {
           size: 9,
           align: 'center',
           weight: 800,
@@ -156,7 +157,7 @@ export class DeckScreen implements Screen {
       c.restore();
       c.fillStyle = 'rgba(0,0,0,0.78)';
       c.fillRect(r.x, r.y + r.h - 30, r.w, 30);
-      text(c, def.name.toUpperCase(), r.x + r.w / 2, r.y + r.h - 18, {
+      text(c, displayName(def).toUpperCase(), r.x + r.w / 2, r.y + r.h - 18, {
         size: 9,
         align: 'center',
         weight: 800,
@@ -197,7 +198,7 @@ export class DeckScreen implements Screen {
         : { x: VIEW.w - 360, y: VIEW.h - 236, w: 320, h: 196 };
       if (portrait && p.released && !pointInRect(p.x, p.y, r)) this.detailOpen = false;
       panel(c, r, { accent: alpha(def.art.glow ?? UI.gold, 0.7), radius: 12 });
-      text(c, def.name, r.x + 18, r.y + 30, { size: 22, weight: 800 });
+      text(c, displayName(def), r.x + 18, r.y + 30, { size: 22, weight: 800, maxWidth: r.w - 36 });
       text(c, `${def.cost} solar · ${def.hp} HP · ${def.recharge}s`, r.x + 18, r.y + 50, {
         size: 12,
         color: UI.inkDim,

@@ -11,6 +11,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'goon',
     name: 'Street Goon',
+    alias: 'Street Thug',
     tagline: 'Hired for the afternoon. Committed for life.',
     faction: 'street',
     hp: 190,
@@ -24,6 +25,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'riot_goon',
     name: 'Riot Goon',
+    alias: 'Riot Thug',
     tagline: 'Brought a helmet. Feels invincible. Is not.',
     faction: 'street',
     hp: 190,
@@ -38,6 +40,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'enforcer',
     name: 'Armoured Enforcer',
+    alias: 'Armoured Thug',
     tagline: 'Riot plating, no peripheral vision.',
     faction: 'street',
     hp: 190,
@@ -52,6 +55,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'grapnel',
     name: 'Grapnel Goon',
+    alias: 'Grapple Thug',
     tagline: 'Vaults your first line. Once.',
     faction: 'nocturne',
     hp: 500,
@@ -65,6 +69,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'shieldbearer',
     name: 'Shieldbearer',
+    alias: 'Shield Thug',
     tagline: 'Everything from the front bounces. Everything.',
     faction: 'street',
     hp: 190,
@@ -79,6 +84,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'redshift',
     name: 'Redshift',
+    alias: 'Reverse-Flash',
     tagline: 'Sprints the lane before you finish reading his card.',
     faction: 'metro',
     hp: 260,
@@ -92,6 +98,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'jester',
     name: 'Jester Goon',
+    alias: 'Joker Goon',
     tagline: 'The punchline is a bomb.',
     faction: 'nocturne',
     hp: 260,
@@ -106,6 +113,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'aerial',
     name: 'Aerial Raider',
+    alias: 'Vulture',
     tagline: 'Ground defences are somebody else’s problem.',
     faction: 'street',
     hp: 340,
@@ -119,6 +127,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'tunneler',
     name: 'Tunneler',
+    alias: 'Mole Man',
     tagline: 'Comes up behind the line. Rude.',
     faction: 'gamma',
     hp: 400,
@@ -132,6 +141,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'coldsnap',
     name: 'Coldsnap',
+    alias: 'Mr. Freeze',
     tagline: 'Freezes your best hero mid-sentence.',
     faction: 'nocturne',
     hp: 700,
@@ -147,6 +157,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'marionette',
     name: 'Marionette',
+    alias: 'Puppet Master',
     tagline: 'Never arrives alone.',
     faction: 'nocturne',
     hp: 640,
@@ -161,6 +172,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'gunner',
     name: 'Plasma Gunner',
+    alias: 'Deadshot',
     tagline: 'Outranges half your roster.',
     faction: 'metro',
     hp: 480,
@@ -176,6 +188,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'juggernought',
     name: 'Juggernought',
+    alias: 'Juggernaut',
     tagline: 'Squashes a hero flat and keeps walking.',
     faction: 'gamma',
     hp: 3000,
@@ -189,6 +202,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'colossus_prime',
     name: 'Colossus Prime',
+    alias: 'Rhino',
     tagline: 'Crushes, then throws his sidekick over the wall.',
     faction: 'gamma',
     hp: 4200,
@@ -203,6 +217,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'sidekick',
     name: 'Sidekick',
+    alias: 'Henchman',
     tagline: 'Landed behind your line. Sorry.',
     faction: 'gamma',
     hp: 150,
@@ -220,6 +235,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'the_grin',
     name: 'The Grin',
+    alias: 'The Joker',
     tagline: 'Rolls into Gotham in a laughing machine.',
     faction: 'nocturne',
     hp: 9000,
@@ -235,6 +251,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'magnate',
     name: 'The Magnate',
+    alias: 'Lex Luthor',
     tagline: 'Bought Metropolis. Wants the lawn too.',
     faction: 'metro',
     hp: 11000,
@@ -251,6 +268,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'colossus_omega',
     name: 'Colossus Omega',
+    alias: 'Abomination',
     tagline: 'The thing the Flats were irradiated to contain.',
     faction: 'gamma',
     hp: 14000,
@@ -275,6 +293,7 @@ export const VILLAINS: VillainDef[] = [
   {
     id: 'dread_tyrant',
     name: 'Dread Tyrant',
+    alias: 'Sinestro',
     tagline: 'Fear given a ring and a grudge.',
     faction: 'cosmic',
     hp: 13000,

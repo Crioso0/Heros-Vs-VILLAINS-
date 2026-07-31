@@ -9,15 +9,15 @@ import type { Rng } from '../core/rng';
  * same events — they are safe to ignore entirely on a headless server.
  */
 export type SimEvent =
-  | { t: 'shoot'; x: number; y: number; kind: string; color: string }
-  | { t: 'hit'; x: number; y: number; color: string; power: number }
+  | { t: 'shoot'; x: number; y: number; kind: string; color: string; heroId?: string }
+  | { t: 'hit'; x: number; y: number; color: string; power: number; armor?: boolean }
   | { t: 'villainDown'; x: number; y: number; big: boolean }
   | { t: 'heroDown'; x: number; y: number }
   | { t: 'plant'; x: number; y: number }
   | { t: 'explode'; x: number; y: number; radius: number; color: string }
-  | { t: 'ultimate'; x: number; y: number; heroId: string; color: string }
+  | { t: 'ultimate'; x: number; y: number; heroId: string; color: string; ultId?: string }
   | { t: 'overdrive' }
-  | { t: 'collect'; kind: 'solar' | 'leaf'; x: number; y: number }
+  | { t: 'collect'; kind: 'solar' | 'leaf'; x: number; y: number; value: number }
   | { t: 'wave'; huge: boolean }
   | { t: 'drone'; row: number }
   | { t: 'shake'; power: number }

@@ -3,9 +3,11 @@
 A lane-defence game in the *Plants vs. Zombies* mould, with collectible
 superheroes holding the line against waves of supervillains.
 
-Fan project. Every character is an original creation — original names, original
-emblems, original art — built as an archetype homage rather than a copy. Nothing
-trademarked appears in the code or the build.
+Personal fan project. Characters show the heroes and villains they are homages
+to by default — Superman, Batman, The Flash, Green Lantern, Spider-Man and the
+rest. Every one also has an original codename (Paragon, Nightfall, Blur, Emerald
+Warden, Websnap), and a toggle in the Codex switches the whole roster between
+the two. The art and emblems are original and drawn procedurally either way.
 
 ```bash
 npm install
@@ -37,6 +39,10 @@ setup.
   player at the same device; networked play is a transport swap, see below.
 - **Four procedural worlds** — midnight rooftops under a searchlight, a noon
   civic plaza, a deep-space Corps citadel, an irradiated desert.
+- **A synth score.** Every sound is generated at runtime: a distinct shot for
+  each hero archetype, signature stings for the ultimates, per-world ambience,
+  and a music bed that thickens as the board gets dangerous. Collect solar
+  quickly and the pickup chimes climb a scale.
 
 ## Controls
 
@@ -44,7 +50,8 @@ setup.
 | --- | --- |
 | Click / tap a card, then a tile | Place a hero (drag also works; tap the card again to cancel) |
 | Click a falling orb | Collect solar — works even with a card armed |
-| Click the Leaf button, then a hero | Leaf Mode |
+| Tap a Leaf on the board, or the Leaf button | Pick a Leaf up |
+| Drag it onto a hero, or tap a hero | Leaf Mode — valid heroes glow while you hold one |
 | `Space` | Overdrive — every ultimate at once |
 | `1`–`9` | Select a card |
 | `F` | Pick up a Leaf |
@@ -113,4 +120,5 @@ Not done yet, in rough priority order:
    but not built here — that needs a Rust toolchain and Xcode/Android Studio.
 3. **Balance.** Tuned against the bot in `src/dev/simSmoke.ts`, not against
    humans. The late campaign in particular wants real playtesting.
-4. **Music.** Sound effects are synthesised; there is no soundtrack.
+4. **Balance of the new audio mix** on real speakers — it is tuned on
+   headphones and against the synth's own levels, not a phone speaker.

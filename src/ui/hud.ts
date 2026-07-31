@@ -1,6 +1,7 @@
 import { clamp, pointInRect, type Rect } from '../core/math';
 import { heroDef } from '../content/heroes';
 import { villainDef } from '../content/villains';
+import { displayName } from '../content/names';
 import { SCHEMES } from '../content/schemes';
 import { drawHero, drawVillain } from '../render/characters';
 import { drawLeafGlyph } from '../render/renderer';
@@ -49,6 +50,9 @@ export interface HudInput {
   time: number;
   /** Replaces the wave meter when a mode has no wave list (Versus). */
   progressOverride?: { ratio: number; label: string; caption: string };
+  /** 0..1 kick on the counters when a pickup lands in them. */
+  solarPunch?: number;
+  leafPunch?: number;
 }
 
 export class Hud {
@@ -65,7 +69,7 @@ export class Hud {
   ): HudAction | null {
     let action: HudAction | null = null;
 
-    action = this.drawSolar(c, state, p) ?? action;
+    action = this.drawSolar(c, state, p, input) ?? action;
     action = this.drawTray(c, state, p, input) ?? action;
     action = this.drawTools(c, p, input) ?? action;
     action = this.drawBottomBar(c, state, p, input) ?? action;
@@ -81,25 +85,35 @@ export class Hud {
     c: CanvasRenderingContext2D,
     state: BattleState,
     p: PointerState,
+    input: HudInput,
   ): HudAction | null {
     const r = SOLAR_BOX;
-    panel(c, r, { accent: alpha(UI.solar, 0.5), radius: 12 });
+    // The counter kicks when solar lands in it, so the arc that flew across the
+    // screen visibly ends somewhere.
+    const punch = input.solarPunch ?? 0;
+    panel(c, r, { accent: alpha(UI.solar, 0.5 + punch * 0.5), radius: 12 });
 
-    const g = c.createRadialGradient(r.x + r.w / 2, r.y + 34, 3, r.x + r.w / 2, r.y + 34, 26);
+    const orbY = r.y + r.h * 0.34;
+    const scale = 1 + punch * 0.22;
+    c.save();
+    c.translate(r.x + r.w / 2, orbY);
+    c.scale(scale, scale);
+    const g = c.createRadialGradient(0, 0, 3, 0, 0, 26);
     g.addColorStop(0, '#fffbe0');
     g.addColorStop(0.45, UI.solar);
     g.addColorStop(1, alpha(UI.solar, 0));
     c.fillStyle = g;
-    ellipse(c, r.x + r.w / 2, r.y + 34, 26, 26);
+    ellipse(c, 0, 0, 26, 26);
     c.fill();
+    c.restore();
 
-    text(c, String(Math.floor(state.solar)), r.x + r.w / 2, r.y + 82, {
-      size: 26,
+    text(c, String(Math.floor(state.solar)), r.x + r.w / 2, r.y + r.h * 0.79, {
+      size: 26 + punch * 5,
       align: 'center',
       weight: 800,
-      color: UI.ink,
+      color: punch > 0.05 ? '#fff8d0' : UI.ink,
     });
-    text(c, 'SOLAR', r.x + r.w / 2, r.y + 98, {
+    text(c, 'SOLAR', r.x + r.w / 2, r.y + r.h - 4, {
       size: 10,
       align: 'center',
       color: UI.inkDim,
@@ -157,7 +171,7 @@ export class Hud {
       // Name plate
       c.fillStyle = 'rgba(6,9,18,0.82)';
       c.fillRect(r.x, r.y + r.h - plateH - costH - 2, r.w, plateH);
-      text(c, def.name.toUpperCase(), r.x + r.w / 2, r.y + r.h - costH - plateH * 0.35, {
+      text(c, displayName(def).toUpperCase(), r.x + r.w / 2, r.y + r.h - costH - plateH * 0.35, {
         size: 9,
         align: 'center',
         color: usable ? UI.ink : UI.inkDim,
@@ -223,7 +237,7 @@ export class Hud {
     const y = portrait ? Math.max(8, r.y - h - 10) : r.y + r.h + 8;
     panel(c, { x, y, w, h }, { accent: alpha(def.art.glow ?? UI.gold, 0.6), radius: 10 });
     const k = portrait ? 1.5 : 1;
-    text(c, def.name, x + 12, y + 22 * k, { size: 16, weight: 800 });
+    text(c, displayName(def), x + 12, y + 22 * k, { size: 16, weight: 800, maxWidth: w - 90 });
     text(c, def.tagline, x + 12, y + 40 * k, { size: 11, color: UI.inkDim, maxWidth: w - 24 });
     text(c, roleLabel(def.role), x + w - 12, y + 22 * k, {
       size: 11,
@@ -330,7 +344,11 @@ export class Hud {
     const leaf = BOTTOM.leaf;
     if (portrait) {
       const hot = pointInRect(p.x, p.y, leaf);
+      const lp = input.leafPunch ?? 0;
       c.save();
+      c.translate(leaf.x + leaf.w / 2, leaf.y + leaf.h / 2);
+      c.scale(1 + lp * 0.16, 1 + lp * 0.16);
+      c.translate(-(leaf.x + leaf.w / 2), -(leaf.y + leaf.h / 2));
       roundRect(c, leaf.x, leaf.y, leaf.w, leaf.h, 14);
       c.fillStyle = state.leaves > 0 ? 'rgba(60,120,70,0.4)' : 'rgba(255,255,255,0.05)';
       c.fill();

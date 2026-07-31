@@ -69,6 +69,7 @@ export function heroFire(
     y,
     kind: spec.kind,
     color: PROJECTILE_COLOR[spec.kind] ?? '#ffffff',
+    heroId: hero.defId,
   });
 }
 
