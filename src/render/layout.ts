@@ -130,7 +130,9 @@ export function configureLayout(
     SOLAR_BOX.h = 106;
 
     BOTTOM.top = VIEW.h - 70;
-    BOTTOM.leaf = { x: 20, y: VIEW.h - 40, w: 30, h: 30 };
+    // One generous button rather than a row of 30px slots: the slots were
+    // technically clickable and practically not, and a mis-click spends a Leaf.
+    BOTTOM.leaf = { x: 16, y: VIEW.h - 64, w: 60, h: 60 };
     BOTTOM.od = { x: 336, y: VIEW.h - 36, w: 210, h: 22 };
     BOTTOM.wave = { x: VIEW.w - 440, y: VIEW.h - 36, w: 420, h: 22 };
 

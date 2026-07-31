@@ -11,7 +11,6 @@ import {
   cardRect,
   LAYOUT,
   laneStripRect,
-  MAX_LEAVES,
   schemeButtonRect,
   SOLAR_BOX,
   toolRect,
@@ -338,53 +337,54 @@ export class Hud {
     c.lineTo(VIEW.w, top);
     c.stroke();
 
-    // Leaf bank. In landscape this is a row of individually tappable slots; on
-    // a phone nine slots cannot each reach a usable size (20 + 9*84 > 720), and
-    // a mis-tap here spends a Leaf — so it becomes one button with a count.
+    // Leaf bank. One button with a count, in both orientations: a row of nine
+    // individually tappable slots cannot reach a usable size at any logical
+    // resolution, and a mis-tap here spends a Leaf.
     const leaf = BOTTOM.leaf;
-    if (portrait) {
-      const hot = pointInRect(p.x, p.y, leaf);
-      const lp = input.leafPunch ?? 0;
-      c.save();
-      c.translate(leaf.x + leaf.w / 2, leaf.y + leaf.h / 2);
-      c.scale(1 + lp * 0.16, 1 + lp * 0.16);
-      c.translate(-(leaf.x + leaf.w / 2), -(leaf.y + leaf.h / 2));
-      roundRect(c, leaf.x, leaf.y, leaf.w, leaf.h, 14);
-      c.fillStyle = state.leaves > 0 ? 'rgba(60,120,70,0.4)' : 'rgba(255,255,255,0.05)';
-      c.fill();
-      c.strokeStyle = state.leaves > 0 ? UI.leaf : 'rgba(255,255,255,0.18)';
-      c.lineWidth = hot && state.leaves > 0 ? 3 : 2;
-      c.stroke();
-      c.globalAlpha = state.leaves > 0 ? 1 : 0.3;
-      drawLeafGlyph(c, leaf.x + leaf.w / 2, leaf.y + leaf.h / 2 - 6, 22);
-      c.restore();
-      text(c, `x${state.leaves}`, leaf.x + leaf.w / 2, leaf.y + leaf.h - 8, {
-        size: 12,
-        align: 'center',
-        weight: 800,
-        color: state.leaves > 0 ? UI.ink : UI.inkDim,
-      });
-      if (state.leaves > 0 && pointInRect(p.x, p.y, leaf) && p.pressed) {
-        action = { kind: 'pickLeaf' };
-      }
-    } else {
-      text(c, 'LEAVES', leaf.x, top + 22, { size: 11, color: UI.inkDim, weight: 800 });
-      for (let i = 0; i < Math.min(MAX_LEAVES, Math.max(3, state.leaves)); i++) {
-        const r: Rect = { x: leaf.x + i * (leaf.w + 4), y: leaf.y, w: leaf.w, h: leaf.h };
-        const filled = i < state.leaves;
-        c.save();
-        c.globalAlpha = filled ? 1 : 0.22;
-        roundRect(c, r.x, r.y, r.w, r.h, 8);
-        c.fillStyle = filled ? 'rgba(60,120,70,0.35)' : 'rgba(255,255,255,0.05)';
-        c.fill();
-        c.strokeStyle = filled ? UI.leaf : 'rgba(255,255,255,0.2)';
-        c.lineWidth = 1.5;
-        c.stroke();
-        drawLeafGlyph(c, r.x + r.w / 2, r.y + r.h / 2, 10);
-        c.restore();
-        if (filled && pointInRect(p.x, p.y, r) && p.pressed) action = { kind: 'pickLeaf' };
-      }
+    const lp = input.leafPunch ?? 0;
+    // The hit rect is padded past the drawn one — this is the control players
+    // reported fighting with, and slop costs nothing next to an empty bar.
+    const leafHit: Rect = { x: leaf.x - 12, y: leaf.y - 12, w: leaf.w + 24, h: leaf.h + 24 };
+    const hasLeaves = state.leaves > 0;
+    const hot = pointInRect(p.x, p.y, leafHit);
+
+    c.save();
+    c.translate(leaf.x + leaf.w / 2, leaf.y + leaf.h / 2);
+    c.scale(1 + lp * 0.16, 1 + lp * 0.16);
+    c.translate(-(leaf.x + leaf.w / 2), -(leaf.y + leaf.h / 2));
+    // A ready Leaf advertises itself.
+    if (hasLeaves) {
+      const glow = 0.4 + Math.sin(input.time * 4) * 0.25;
+      const g = c.createRadialGradient(
+        leaf.x + leaf.w / 2,
+        leaf.y + leaf.h / 2,
+        4,
+        leaf.x + leaf.w / 2,
+        leaf.y + leaf.h / 2,
+        leaf.w * 0.9,
+      );
+      g.addColorStop(0, alpha(UI.leaf, 0.35 * glow));
+      g.addColorStop(1, alpha(UI.leaf, 0));
+      c.fillStyle = g;
+      c.fillRect(leafHit.x, leafHit.y, leafHit.w, leafHit.h);
     }
+    roundRect(c, leaf.x, leaf.y, leaf.w, leaf.h, 14);
+    c.fillStyle = hasLeaves ? 'rgba(60,120,70,0.45)' : 'rgba(255,255,255,0.05)';
+    c.fill();
+    c.strokeStyle = hasLeaves ? UI.leaf : 'rgba(255,255,255,0.18)';
+    c.lineWidth = hot && hasLeaves ? 3.5 : 2;
+    c.stroke();
+    c.globalAlpha = hasLeaves ? 1 : 0.3;
+    drawLeafGlyph(c, leaf.x + leaf.w / 2, leaf.y + leaf.h * 0.42, leaf.w * 0.27);
+    c.restore();
+
+    text(c, `x${state.leaves}`, leaf.x + leaf.w / 2, leaf.y + leaf.h - 7, {
+      size: 12,
+      align: 'center',
+      weight: 800,
+      color: hasLeaves ? UI.ink : UI.inkDim,
+    });
+    if (hasLeaves && p.pressed && hot) action = { kind: 'pickLeaf' };
 
     // Overdrive. The hit rect is finger-sized in portrait; the bar is drawn
     // smaller inside it.

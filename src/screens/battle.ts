@@ -396,7 +396,7 @@ export class BattleScreen implements Screen {
 
   private pickupUnder(x: number, y: number): { id: number; kind: 'solar' | 'leaf' } | null {
     let best: { id: number; kind: 'solar' | 'leaf' } | null = null;
-    const reach = LAYOUT.mode === 'portrait' ? 72 : 52;
+    const reach = LAYOUT.mode === 'portrait' ? 78 : 64;
     let bestD = reach * reach;
     for (const p of this.match.state.pickups) {
       if (p.claimed) continue;

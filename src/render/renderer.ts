@@ -5,7 +5,7 @@ import { worldDef } from '../content/worlds';
 import { PROJECTILE_COLOR } from '../sim/attacks';
 import type { SimEvent } from '../sim/events';
 import type { BattleState, HeroEntity, VillainEntity } from '../sim/types';
-import { backdropLayer, drawWeather } from './backdrops';
+import { backdropLayer, drawWeather, lawnLayer } from './backdrops';
 import { drawHealthBar, drawHero, drawShadow, drawVillain } from './characters';
 import { FxLayer } from './fx';
 import { BOARD, bx, by, healthBarY, hqRect, LAYOUT, pickupTarget, VIEW } from './layout';
@@ -136,29 +136,9 @@ export class BattleRenderer {
     roundRect(c, BOARD.x - 14, BOARD.y - 12, w + 28, h + 26, 18);
     c.fill();
 
-    for (let r = 0; r < state.rows; r++) {
-      for (let col = 0; col < state.cols; col++) {
-        const even = (r + col) % 2 === 0;
-        const base = even ? world.palette.lane[0] : world.palette.lane[1];
-        c.fillStyle = base;
-        c.fillRect(bx(col), by(r), BOARD.cellW, BOARD.cellH);
-        // Subtle top-light on each tile.
-        const g = c.createLinearGradient(0, by(r), 0, by(r + 1));
-        g.addColorStop(0, alpha('#ffffff', 0.07));
-        g.addColorStop(1, alpha('#000000', 0.12));
-        c.fillStyle = g;
-        c.fillRect(bx(col), by(r), BOARD.cellW, BOARD.cellH);
-      }
-    }
-
-    c.strokeStyle = alpha('#000000', 0.22);
-    c.lineWidth = 1;
-    for (let r = 0; r <= state.rows; r++) {
-      c.beginPath();
-      c.moveTo(BOARD.x, by(r));
-      c.lineTo(BOARD.x + w, by(r));
-      c.stroke();
-    }
+    // The board is a cached layer: checker, per-world ground texture and lane
+    // separators are all baked, so this is one blit instead of 45 gradients.
+    c.drawImage(lawnLayer(world, state.cols, state.rows, BOARD.cellW, BOARD.cellH), BOARD.x, BOARD.y);
   }
 
   private drawHouse(c: CanvasRenderingContext2D, state: BattleState): void {
