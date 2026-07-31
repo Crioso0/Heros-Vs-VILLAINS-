@@ -891,7 +891,14 @@ export function heroDef(id: HeroId): HeroDef {
   return def;
 }
 
-/** Unlock order for the campaign. Index 0..n is granted as levels are cleared. */
+/**
+ * Heroes the player owns before the first level. Kept here rather than in the
+ * save module so content can filter them out of the reward sequence without
+ * src/content/ depending on the persistence layer.
+ */
+export const STARTER_HEROES: HeroId[] = ['solaris', 'bluebolt', 'bulwark'];
+
+/** Introduction order for the campaign, starters first. */
 export const UNLOCK_ORDER: HeroId[] = [
   'solaris',
   'bluebolt',
@@ -919,3 +926,11 @@ export const UNLOCK_ORDER: HeroId[] = [
   'paragon',
   'tempest',
 ];
+
+/**
+ * What each campaign level awards, in order. Starters are excluded — a level
+ * that "rewards" a hero the player already owns silently grants nothing.
+ */
+export const REWARD_ORDER: HeroId[] = UNLOCK_ORDER.filter(
+  (id) => !STARTER_HEROES.includes(id),
+);

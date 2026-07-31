@@ -44,6 +44,12 @@ export interface HudInput {
   progressOverride?: { ratio: number; label: string; caption: string };
 }
 
+/** Bottom-bar geometry. Derived so the leaf row and the meter cannot collide. */
+const LEAF_ROW_X = 20;
+const LEAF_SLOT_PITCH = 34;
+const MAX_LEAVES = 9;
+const OVERDRIVE_X = LEAF_ROW_X + MAX_LEAVES * LEAF_SLOT_PITCH + 10;
+
 export class Hud {
   /** Populated during draw so the battle screen can hit-test cheaply. */
   cardRects: Rect[] = [];
@@ -302,9 +308,12 @@ export class Hud {
     c.stroke();
 
     // Leaf inventory — click one to pick it up, then drop it on a hero.
-    text(c, 'LEAVES', 20, y + 22, { size: 11, color: UI.inkDim, weight: 800 });
+    // Leaves cap at 9 (see doCollect), so the row is reserved out to its full
+    // width and the overdrive meter starts past it; otherwise a banked sixth
+    // leaf sits on top of the meter and one click fires both.
+    text(c, 'LEAVES', LEAF_ROW_X, y + 22, { size: 11, color: UI.inkDim, weight: 800 });
     for (let i = 0; i < Math.max(3, state.leaves); i++) {
-      const r: Rect = { x: 20 + i * 34, y: y + 30, w: 30, h: 30 };
+      const r: Rect = { x: LEAF_ROW_X + i * LEAF_SLOT_PITCH, y: y + 30, w: 30, h: 30 };
       const filled = i < state.leaves;
       c.save();
       c.globalAlpha = filled ? 1 : 0.22;
@@ -320,9 +329,9 @@ export class Hud {
     }
 
     // Overdrive
-    const odRect: Rect = { x: 210, y: y + 34, w: 210, h: 22 };
+    const odRect: Rect = { x: OVERDRIVE_X, y: y + 34, w: 210, h: 22 };
     const full = state.overdrive >= 1;
-    text(c, 'OVERDRIVE', 210, y + 24, { size: 11, color: UI.inkDim, weight: 800 });
+    text(c, 'OVERDRIVE', OVERDRIVE_X, y + 24, { size: 11, color: UI.inkDim, weight: 800 });
     meter(
       c,
       odRect,
@@ -391,7 +400,7 @@ export class Hud {
     for (let i = 0; i < state.villainCards.length; i++) {
       const card = state.villainCards[i];
       const def = villainDef(card.villainId);
-      const r = villainCardRect(i);
+      const r = villainCardRect(i, state.villainCards.length);
       this.villainRects.push(r);
       const usable = card.cooldown <= 0 && state.menace >= def.menace;
       const selected = input.selectedVillainCard === i;
@@ -401,13 +410,16 @@ export class Hud {
       c.fillStyle = '#2a1420';
       c.fill();
       c.clip();
+      // The column sizes itself to the deck, so the figure and the cost strip
+      // are both derived from the card rather than fixed.
+      const costH = Math.max(12, Math.min(16, r.h * 0.26));
       c.globalAlpha = usable ? 1 : 0.5;
-      drawVillain(c, def.art, r.x + r.w / 2, r.y + r.h - 20, {
+      drawVillain(c, def.art, r.x + r.w / 2, r.y + r.h - costH - 2, {
         time: input.time + i,
         act: 0,
         hurt: 0,
         ult: 0,
-        height: 62,
+        height: Math.max(28, r.h - costH - 6),
         facing: -1,
         walk: 0,
         armor: 1,
@@ -416,9 +428,9 @@ export class Hud {
       });
       c.globalAlpha = 1;
       c.fillStyle = 'rgba(0,0,0,0.75)';
-      c.fillRect(r.x, r.y + r.h - 16, r.w, 16);
-      text(c, String(def.menace), r.x + r.w / 2, r.y + r.h - 4, {
-        size: 11,
+      c.fillRect(r.x, r.y + r.h - costH, r.w, costH);
+      text(c, String(def.menace), r.x + r.w / 2, r.y + r.h - costH * 0.28, {
+        size: Math.min(11, costH * 0.72),
         align: 'center',
         weight: 800,
         color: UI.danger,

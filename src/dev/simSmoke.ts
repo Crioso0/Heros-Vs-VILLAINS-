@@ -8,10 +8,12 @@
  *   npm run test:sim
  */
 import { Rng, seedFromString } from '../core/rng';
-import { HEROES, heroDef } from '../content/heroes';
+import { HEROES, heroDef, STARTER_HEROES } from '../content/heroes';
 import { levelDef, LEVELS, skirmishLevel } from '../content/levels';
 import { VILLAINS } from '../content/villains';
 import { Director, directorDeck } from '../ai/director';
+import { applyCommand } from '../sim/commands';
+import { applyEffect, effectiveSpeed } from '../sim/combat';
 import { createContext, step } from '../sim/sim';
 import { createBattle, spawnHero, spawnVillain } from '../sim/state';
 import { triggerUltimate } from '../sim/ultimates';
@@ -284,6 +286,112 @@ section('Versus (AI villain commander)');
   console.log(
     `       ${deployed} deploys, ${state.defeated} defeated, phase=${state.phase} at ${state.time.toFixed(0)}s`,
   );
+}
+
+/* ------------------------------------------------------------------ *
+ * Regressions — each of these is a bug that shipped once already
+ * ------------------------------------------------------------------ */
+
+section('Regressions');
+{
+  const level = levelDef('gotham-5');
+
+  // One body per cell. `walkable` is optional on HeroDef, so an un-normalised
+  // comparison against `false` silently let heroes stack without limit.
+  {
+    const state = createBattle({ level, deck: ['bulwark', 'tripwire'], seed: 5 });
+    const ctx = createContext(5);
+    state.solar = 10000;
+    const plant = (heroId: HeroId) => {
+      for (const card of state.cards) card.cooldown = 0;
+      return applyCommand(state, ctx, { t: 'plant', player: 0, heroId, col: 3, row: 2 });
+    };
+    const first = plant('bulwark');
+    const second = plant('bulwark');
+    const hazard = plant('tripwire');
+    const hazardTwice = plant('tripwire');
+    check('a second body cannot be planted on an occupied cell', first && !second);
+    check('a walkable hazard still stacks under a body', hazard === true);
+    check('two hazards cannot share a cell', hazardTwice === false);
+  }
+
+  // A villain must collide with the body in a cell, not the hazard under it.
+  {
+    const state = createBattle({ level, deck: ['tripwire', 'bulwark'], seed: 6 });
+    const ctx = createContext(6);
+    state.solar = 10000;
+    spawnHero(state, 'tripwire', 3, 2); // hazard planted FIRST, so it is heroAt's match
+    const wall = spawnHero(state, 'bulwark', 3, 2);
+    const goon = spawnVillain(state, 'goon', 2, 4.2);
+    run(state, ctx, 25);
+    check(
+      'a villain attacks the body, not the hazard lying under it',
+      wall.hp < wall.maxHp,
+      `wall hp ${wall.hp}/${wall.maxHp}, goon x=${goon.x.toFixed(2)}`,
+    );
+  }
+
+  // The Guardian Drone must save a lane even when a vaulter's hop lands the
+  // villain past the detection line on the same tick the drone triggers.
+  {
+    const state = createBattle({ level, deck: ['bulwark'], seed: 7 });
+    const ctx = createContext(7);
+    spawnHero(state, 'bulwark', 0, 2);
+    const vaulter = spawnVillain(state, 'grapnel', 2, 0.9);
+    run(state, ctx, 12);
+    check(
+      'a vaulting villain does not skip past the Guardian Drone',
+      state.phase === 'playing' && vaulter.hp <= 0,
+      `phase=${state.phase} vaulterHp=${vaulter.hp} x=${vaulter.x.toFixed(2)}`,
+    );
+  }
+
+  // A lapsed strong slow must not be resurrected by a later weak one.
+  {
+    const state = createBattle({ level, deck: ['bluebolt'], seed: 8 });
+    const ctx = createContext(8);
+    const v = spawnVillain(state, 'goon', 2, 8);
+    applyEffect(state, ctx, v, { type: 'slow', duration: 1, power: 0.9 });
+    run(state, ctx, 3); // strong slow lapses
+    applyEffect(state, ctx, v, { type: 'slow', duration: 5, power: 0.2 });
+    const speed = effectiveSpeed(state, v);
+    const base = 0.23;
+    check(
+      'an expired strong slow does not carry into a later weak slow',
+      Math.abs(speed - base * 0.8) < 1e-6,
+      `speed=${speed.toFixed(4)} expected=${(base * 0.8).toFixed(4)}`,
+    );
+  }
+
+  // Every campaign reward must grant a hero the player does not already own.
+  {
+    const rewards = LEVELS.map((l) => l.reward).filter(Boolean) as HeroId[];
+    check(
+      'no level rewards a starter hero',
+      rewards.every((id) => !STARTER_HEROES.includes(id)),
+      rewards.filter((id) => STARTER_HEROES.includes(id)).join(', '),
+    );
+    check('no hero is rewarded twice', new Set(rewards).size === rewards.length);
+    check(
+      'every non-starter hero is obtainable from the campaign',
+      HEROES.filter((h) => !h.hidden && !STARTER_HEROES.includes(h.id)).every((h) =>
+        rewards.includes(h.id),
+      ),
+      HEROES.filter((h) => !h.hidden && !STARTER_HEROES.includes(h.id) && !rewards.includes(h.id))
+        .map((h) => h.id)
+        .join(', '),
+    );
+  }
+
+  // Each world's finale must field a boss-flagged villain.
+  {
+    for (const world of ['gotham', 'metropolis', 'emerald_reach', 'gamma_flats']) {
+      const finale = levelDef(`${world}-10`);
+      const ids = finale.waves.flatMap((w) => w.entries.map((e) => e.villain));
+      const hasBoss = ids.some((id) => VILLAINS.find((v) => v.id === id)?.boss);
+      check(`${world} finale fields a boss`, hasBoss, ids.join(','));
+    }
+  }
 }
 
 /* ------------------------------------------------------------------ * */

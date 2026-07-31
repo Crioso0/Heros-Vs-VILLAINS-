@@ -21,7 +21,11 @@ environment does not have. Nothing in the game code needs to change for either.
   runtime. The whole build is ~120 KB of JavaScript (~39 KB gzipped) and one
   HTML file. Nothing to bundle, nothing to license, no download on first launch.
 - **Relative base path.** `vite.config.ts` sets `base: './'` so the built
-  `dist/` works from a `file://` origin, which is how both native shells load it.
+  `dist/` is position-independent — it does not assume it is served from the
+  root of a domain, which is what both native shells need. Note that the shells
+  serve it over a custom scheme (`tauri://localhost`, `capacitor://localhost`)
+  or a local HTTP server, *not* a raw `file://` origin: the bundle is an ES
+  module, and module scripts are fetched in CORS mode, which `file://` denies.
 - **Storage is behind one module.** All persistence goes through
   `src/game/progress.ts`. Swapping `localStorage` for a native file or
   preferences store is a change in that one file.
@@ -66,7 +70,10 @@ permissions. Add only `fs` scoped to the app data directory if you move saves
 off `localStorage`.
 
 **Electron is the fallback** if a Rust toolchain is a problem: same `dist/`,
-`loadFile('dist/index.html')`, much larger binary.
+much larger binary. Do not use `loadFile('dist/index.html')` — that produces a
+genuine `file://` origin, which cannot load the ES-module bundle. Register a
+custom protocol (`protocol.handle`) or serve `dist/` from a local static server
+in the main process, and `loadURL` that instead.
 
 ## Mobile — Capacitor
 

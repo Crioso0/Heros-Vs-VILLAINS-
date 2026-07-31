@@ -16,6 +16,7 @@ import { MenuScreen } from './menu';
 export class MapScreen implements Screen {
   private t = 0;
   private worldIndex = 0;
+  private lastDt = 1 / 60;
   private allIds = LEVELS.map((l) => l.id);
 
   constructor(private app: App) {
@@ -31,12 +32,13 @@ export class MapScreen implements Screen {
 
   update(dt: number): void {
     this.t += dt;
+    this.lastDt = dt;
   }
 
   draw(c: CanvasRenderingContext2D): void {
     const world = WORLDS[this.worldIndex];
     c.drawImage(backdropLayer(world, VIEW.w, VIEW.h), 0, 0);
-    drawWeather(c, world, VIEW.w, VIEW.h, this.t, 1 / 60);
+    drawWeather(c, world, VIEW.w, VIEW.h, this.t, this.lastDt);
     c.fillStyle = 'rgba(4,7,16,0.55)';
     c.fillRect(0, 0, VIEW.w, VIEW.h);
 
@@ -140,7 +142,12 @@ export class MapScreen implements Screen {
         text(c, '✓', r.x + r.w - 14, r.y + 20, { size: 16, align: 'center', color: UI.leaf });
       }
       // Reward portrait
-      if (level.reward && HERO_BY_ID[level.reward] && !cleared) {
+      if (
+        level.reward &&
+        HERO_BY_ID[level.reward] &&
+        !cleared &&
+        !this.app.progress.isUnlocked(level.reward)
+      ) {
         c.globalAlpha = available ? 0.9 : 0.3;
         drawHero(c, HERO_BY_ID[level.reward].art, r.x + 18, r.y + r.h - 6, {
           time: this.t,

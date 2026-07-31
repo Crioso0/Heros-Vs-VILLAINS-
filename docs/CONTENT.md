@@ -88,6 +88,7 @@ Instants resolve on placement and have no Leaf Mode.
 | Plasma Gunner | 6 | Shoots from outside melee range |
 | Juggernought | 12 | Destroys the defender it reaches outright |
 | Colossus Prime | 16 | Crushes, then throws a Sidekick over your line |
+| Colossus Omega | 52 | The Gamma Flats boss: plated, and it still throws Sidekicks |
 
 ### Bosses
 
@@ -96,6 +97,7 @@ Instants resolve on placement and have no Leaf Mode.
 | The Grin | The Grim City |
 | The Magnate | The Bright City |
 | Dread Tyrant | Emerald Reach |
+| Colossus Omega | Gamma Flats |
 
 ## Worlds
 

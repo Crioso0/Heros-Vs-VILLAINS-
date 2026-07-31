@@ -19,7 +19,7 @@ import {
 } from './combat';
 import { applyCommand } from './commands';
 import { emit, type SimContext } from './events';
-import { heroAt, spawnHazard, spawnPickup, spawnProjectile, spawnVillain } from './state';
+import { blockerAt, spawnHazard, spawnPickup, spawnProjectile, spawnVillain } from './state';
 import { endUltimate, updateUltimate } from './ultimates';
 import { TICK_DT, type BattleState, type Command, type HeroEntity, type VillainEntity } from './types';
 
@@ -279,8 +279,11 @@ function updateVillains(state: BattleState, ctx: SimContext, dt: number): void {
     if (v.airborne || v.intangible) {
       if (def.ability === 'vault' && v.phase === 1) {
         // Hop arc: fast, brief, and it lands on the far side of the blocker.
+        // Clamped short of the drone detection line (0.15): an unclamped hop
+        // covers 1.4 cells and can clear the 0.5-cell band between detection
+        // and the loss line in one tick, skipping the Guardian Drone entirely.
         v.cd -= dt;
-        v.x -= 2.6 * dt;
+        v.x = Math.max(0.1, v.x - 2.6 * dt);
         if (v.cd <= 0) {
           v.intangible = false;
           v.phase = 2;
@@ -299,10 +302,9 @@ function updateVillains(state: BattleState, ctx: SimContext, dt: number): void {
     // Find whatever is directly in front of this villain.
     const frontCol = Math.floor(v.x - 0.3);
     const blocker =
-      frontCol >= 0 && frontCol < state.cols ? heroAt(state, frontCol, v.row) : undefined;
-    const blocking = blocker && !heroDef(blocker.defId).walkable;
+      frontCol >= 0 && frontCol < state.cols ? blockerAt(state, frontCol, v.row) : undefined;
 
-    if (blocking && blocker) {
+    if (blocker) {
       v.targetId = blocker.id;
       if (frozen) continue;
 
@@ -468,8 +470,8 @@ function updateProjectiles(state: BattleState, ctx: SimContext, dt: number): voi
       // Villain fire: damages the first hero it overlaps.
       const col = Math.floor(p.x);
       const row = Math.round(p.y - 0.5);
-      const hero = col >= 0 && col < state.cols ? heroAt(state, col, row) : undefined;
-      if (hero && !heroDef(hero.defId).walkable) {
+      const hero = col >= 0 && col < state.cols ? blockerAt(state, col, row) : undefined;
+      if (hero) {
         damageHero(state, ctx, hero, p.damage);
         emit(ctx, { t: 'hit', x: p.x, y: p.y, color: '#64ffda', power: 0.8 });
         state.projectiles.splice(i, 1);
@@ -629,7 +631,9 @@ function checkEnd(state: BattleState, ctx: SimContext): void {
     if (v.hp <= 0 || v.intangible) continue;
     if (v.x > -0.35) continue;
     const drone = state.drones.find((d) => d.row === v.row);
-    if (!drone || drone.used) {
+    // A drone that is still sweeping has not saved this lane *yet* — it is
+    // marked used the instant it triggers, so only a finished sweep counts.
+    if (!drone || (drone.used && drone.active === 0)) {
       state.phase = 'lost';
       emit(ctx, { t: 'phase', phase: 'lost' });
       emit(ctx, { t: 'sound', id: 'lose' });

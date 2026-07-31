@@ -1,4 +1,4 @@
-import { UNLOCK_ORDER } from '../content/heroes';
+import { STARTER_HEROES, UNLOCK_ORDER } from '../content/heroes';
 import type { HeroId } from '../sim/types';
 
 /**
@@ -25,7 +25,7 @@ const KEY = 'hvv.save.v1';
 
 const DEFAULT_SAVE: SaveData = {
   version: 1,
-  unlocked: ['solaris', 'bluebolt', 'bulwark'],
+  unlocked: [...STARTER_HEROES],
   cleared: [],
   decks: {},
   settings: { sfx: true, music: true, reducedFx: false },

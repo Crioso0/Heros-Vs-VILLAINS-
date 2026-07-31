@@ -14,17 +14,19 @@ import { VersusSetupScreen } from './versusSetup';
 
 export class MenuScreen implements Screen {
   private t = 0;
+  private lastDt = 1 / 60;
 
   constructor(private app: App) {}
 
   update(dt: number): void {
     this.t += dt;
+    this.lastDt = dt;
   }
 
   draw(c: CanvasRenderingContext2D): void {
     const world = worldDef('gotham');
     c.drawImage(backdropLayer(world, VIEW.w, VIEW.h), 0, 0);
-    drawWeather(c, world, VIEW.w, VIEW.h, this.t, 1 / 60);
+    drawWeather(c, world, VIEW.w, VIEW.h, this.t, this.lastDt);
 
     // A hero line-up along the bottom, facing off against villains.
     const heroes = ['paragon', 'emerald_warden', 'nightfall', 'vanguard'];

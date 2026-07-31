@@ -1,6 +1,6 @@
 import type { LevelDef, VillainId, WaveDef, WorldId } from '../sim/types';
 import { Rng, seedFromString } from '../core/rng';
-import { UNLOCK_ORDER } from './heroes';
+import { REWARD_ORDER } from './heroes';
 import { VILLAIN_BY_ID } from './villains';
 import { WORLDS } from './worlds';
 
@@ -64,7 +64,7 @@ const WORLD_BOSS: Record<WorldId, VillainId> = {
   gotham: 'the_grin',
   metropolis: 'magnate',
   emerald_reach: 'dread_tyrant',
-  gamma_flats: 'colossus_prime',
+  gamma_flats: 'colossus_omega',
 };
 
 const WORLD_INTRO: Record<WorldId, string> = {
@@ -156,9 +156,10 @@ function makeLevel(worldId: WorldId, order: number): LevelDef {
   const cols = 9;
   const boss = order === LEVELS_PER_WORLD;
 
-  // Reward a new hero on most levels, following the global unlock order.
-  const rewardIndex = Math.min(UNLOCK_ORDER.length - 1, globalIndex - 1);
-  const reward = globalIndex <= UNLOCK_ORDER.length ? UNLOCK_ORDER[rewardIndex] : undefined;
+  // Reward a new hero on most levels. REWARD_ORDER excludes the starters, so
+  // every slot grants something the player does not already own; levels past
+  // the end of the sequence simply award nothing.
+  const reward = REWARD_ORDER[globalIndex - 1];
 
   const level: LevelDef = {
     id: `${worldId}-${order}`,

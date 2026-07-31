@@ -38,11 +38,15 @@ export class BattleScreen implements Screen {
   private dragging = false;
   private shovel = false;
   private carryingLeaf = false;
+  /** Set on the press that arms a Leaf, so its own release is not a drop. */
+  private leafArmedThisPress = false;
   private selectedVillainCard: number | null = null;
   private selectedScheme: string | null = null;
   private paused = false;
   private speed = 1;
   private t = 0;
+  /** Real seconds since the last frame, cached in update() for draw(). */
+  private lastDt = 1 / 60;
   private resolved = false;
   private rewarded: HeroId | null = null;
   /** Versus has no wave list, so the hero side wins by surviving the clock. */
@@ -72,6 +76,7 @@ export class BattleScreen implements Screen {
 
   update(dt: number): void {
     this.t += dt;
+    this.lastDt = dt;
     const p = this.app.pointer;
     const state = this.match.state;
 
@@ -125,7 +130,8 @@ export class BattleScreen implements Screen {
 
   draw(c: CanvasRenderingContext2D): void {
     const state = this.match.state;
-    this.renderer.draw(c, state, this.paused ? 0 : 1 / 60);
+    // Effects follow the fast-forward button so they stay in step with the sim.
+    this.renderer.draw(c, state, this.paused ? 0 : this.lastDt * this.speed);
 
     const action = this.hud.draw(c, state, this.app.pointer, {
       selectedCard: this.selectedCard,
@@ -187,7 +193,10 @@ export class BattleScreen implements Screen {
         this.match.issue({ t: 'overdrive', player: 0 });
         return;
       case 'pickLeaf':
+        // Emitted on press (hud.ts), so the matching release arrives next and
+        // would otherwise be read as a drop on empty ground.
         this.carryingLeaf = true;
+        this.leafArmedThisPress = true;
         this.selectedCard = null;
         this.shovel = false;
         return;
@@ -248,9 +257,14 @@ export class BattleScreen implements Screen {
 
     if (this.carryingLeaf) {
       if (p.released) {
-        const hero = this.heroUnder(p.x, p.y);
-        if (hero) this.match.issue({ t: 'leaf', player: 0, heroId: hero.id });
-        this.carryingLeaf = false;
+        if (this.leafArmedThisPress) {
+          // This is the release of the arming click — stay armed for the drop.
+          this.leafArmedThisPress = false;
+        } else {
+          const hero = this.heroUnder(p.x, p.y);
+          if (hero) this.match.issue({ t: 'leaf', player: 0, heroId: hero.id });
+          this.carryingLeaf = false;
+        }
       }
       return;
     }
@@ -305,6 +319,7 @@ export class BattleScreen implements Screen {
         break;
       case 'f':
         if (state.leaves > 0) this.carryingLeaf = !this.carryingLeaf;
+        this.leafArmedThisPress = false;
         break;
       case 's':
         this.shovel = !this.shovel;
@@ -359,14 +374,14 @@ export class BattleScreen implements Screen {
    * ---------------------------------------------------------------- */
 
   private drawVersusStatus(c: CanvasRenderingContext2D): void {
-    // Sits directly above the villain deploy column, clear of the scheme row.
-    text(
-      c,
-      this.opts.versus?.ai ? 'VILLAIN AI' : 'PLAYER 2 · VILLAINS',
-      VIEW.w - 45,
-      143,
-      { size: 10, align: 'center', color: UI.danger, weight: 800 },
-    );
+    // Sits directly above the villain deploy column, clear of the scheme row
+    // and inside the right edge of the view.
+    text(c, this.opts.versus?.ai ? 'VILLAIN AI' : 'PLAYER 2', VIEW.w - 8, 143, {
+      size: 10,
+      align: 'right',
+      color: UI.danger,
+      weight: 800,
+    });
   }
 
   private drawPause(c: CanvasRenderingContext2D): void {

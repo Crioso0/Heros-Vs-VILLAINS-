@@ -217,14 +217,31 @@ export function spawnPickup(
  * Queries
  * ------------------------------------------------------------------ */
 
+/** Topmost occupant of a cell, hazard or body. Used by the shovel and Sabotage. */
 export function heroAt(state: BattleState, col: number, row: number): HeroEntity | undefined {
   return state.heroes.find((h) => h.col === col && h.row === row && h.hp > 0);
 }
 
-/** Occupancy check that ignores walkable hazards, which stack under a body. */
+/**
+ * The occupant a villain collides with: a body, never a walkable hazard lying
+ * under it. `heroAt` returns whichever was planted first, so a hazard placed
+ * before a wall would otherwise hide the wall from the collision check.
+ */
+export function blockerAt(state: BattleState, col: number, row: number): HeroEntity | undefined {
+  return state.heroes.find(
+    (h) => h.col === col && h.row === row && h.hp > 0 && !heroDef(h.defId).walkable,
+  );
+}
+
+/**
+ * Occupancy check that lets walkable hazards stack under a body.
+ *
+ * `walkable` is optional on HeroDef, so it is `undefined` rather than `false`
+ * on every ordinary hero — both sides must be normalised or this never fires.
+ */
 export function cellBlocked(state: BattleState, col: number, row: number, walkable: boolean): boolean {
   return state.heroes.some(
-    (h) => h.col === col && h.row === row && h.hp > 0 && heroDef(h.defId).walkable === walkable,
+    (h) => h.col === col && h.row === row && h.hp > 0 && !!heroDef(h.defId).walkable === walkable,
   );
 }
 

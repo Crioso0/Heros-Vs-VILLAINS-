@@ -44,11 +44,17 @@ export function applyEffect(
   const t = state.time;
   const s = v.status;
   switch (spec.type) {
+    // The magnitude fields below are only meaningful inside their window, but
+    // nothing clears them when it lapses — so they are reset here, before the
+    // window is extended. Otherwise the strongest slow a villain ever received
+    // is silently restored by any later, weaker one.
     case 'slow':
+      if (t >= s.slowUntil) s.slowPower = 0;
       s.slowUntil = Math.max(s.slowUntil, t + (spec.duration ?? 3));
       s.slowPower = Math.max(s.slowPower, spec.power ?? 0.5);
       break;
     case 'freeze':
+      if (t >= s.slowUntil) s.slowPower = 0;
       s.freezeUntil = Math.max(s.freezeUntil, t + (spec.duration ?? 3));
       s.slowUntil = Math.max(s.slowUntil, t + (spec.duration ?? 3) + 2);
       s.slowPower = Math.max(s.slowPower, 0.5);
@@ -60,6 +66,7 @@ export function applyEffect(
       s.rootUntil = Math.max(s.rootUntil, t + (spec.duration ?? 3));
       break;
     case 'burn':
+      if (t >= s.burnUntil) s.burnDps = 0;
       s.burnUntil = Math.max(s.burnUntil, t + (spec.duration ?? 3));
       s.burnDps = Math.max(s.burnDps, spec.power ?? 10);
       break;

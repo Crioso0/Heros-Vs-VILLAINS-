@@ -24,6 +24,8 @@ export class App {
 
   private screen: Screen | null = null;
   private pending: Screen | null = null;
+  /** The one pointer that owns input. A second finger must not hijack a drag. */
+  private activePointerId: number | null = null;
   private last = 0;
   private scale = 1;
   private offsetX = 0;
@@ -116,6 +118,11 @@ export class App {
   }
 
   private bindPointer(): void {
+    // Coordinates outside the letterboxed view are rejected rather than
+    // clamped: a tap on a black bar must not land on the nearest control.
+    const inView = (p: { x: number; y: number }) =>
+      p.x >= 0 && p.x <= VIEW.w && p.y >= 0 && p.y <= VIEW.h;
+
     const move = (clientX: number, clientY: number) => {
       const p = this.toView(clientX, clientY);
       this.pointer.x = p.x;
@@ -123,10 +130,15 @@ export class App {
     };
 
     this.canvas.addEventListener('pointermove', (e) => {
+      if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
       move(e.clientX, e.clientY);
     });
 
     this.canvas.addEventListener('pointerdown', (e) => {
+      // First finger down owns the gesture until it lifts.
+      if (this.activePointerId !== null) return;
+      if (!inView(this.toView(e.clientX, e.clientY))) return;
+      this.activePointerId = e.pointerId;
       this.canvas.setPointerCapture?.(e.pointerId);
       move(e.clientX, e.clientY);
       this.pointer.down = true;
@@ -137,13 +149,23 @@ export class App {
       e.preventDefault();
     });
 
-    const up = (e: PointerEvent) => {
+    const release = (e: PointerEvent) => {
+      if (e.pointerId !== this.activePointerId) return;
+      this.activePointerId = null;
       move(e.clientX, e.clientY);
       this.pointer.down = false;
       this.pointer.released = true;
     };
-    this.canvas.addEventListener('pointerup', up);
-    this.canvas.addEventListener('pointercancel', up);
+    this.canvas.addEventListener('pointerup', release);
+    this.canvas.addEventListener('pointercancel', release);
+    // If capture is lost (OS gesture, pointer leaves the surface) the latch
+    // must still clear, or input is stranded for the rest of the session.
+    this.canvas.addEventListener('lostpointercapture', (e) => {
+      if (e.pointerId !== this.activePointerId) return;
+      this.activePointerId = null;
+      this.pointer.down = false;
+      this.pointer.released = true;
+    });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 

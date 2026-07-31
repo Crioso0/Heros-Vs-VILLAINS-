@@ -123,7 +123,17 @@ export class Director {
   }
 }
 
-/** A sensible villain deck for AI-run skirmishes at a given difficulty. */
+/** How many villain cards the commander HUD can show without cramping. */
+export const MAX_VILLAIN_DECK = 8;
+
+/**
+ * A sensible villain deck for a given threat level.
+ *
+ * Capped at MAX_VILLAIN_DECK: past that the deploy column has to shrink cards
+ * below a readable size. When the cap bites, the two cheapest units are kept —
+ * chaff to soak a lane is tactically useful at every threat level — and the
+ * rest of the slots go to the most recently unlocked tiers.
+ */
 export function directorDeck(difficulty: number): string[] {
   const tiers = [
     ['goon', 'riot_goon', 'grapnel'],
@@ -134,5 +144,6 @@ export function directorDeck(difficulty: number): string[] {
   ];
   const out: string[] = [];
   for (let i = 0; i <= Math.min(tiers.length - 1, difficulty); i++) out.push(...tiers[i]);
-  return out;
+  if (out.length <= MAX_VILLAIN_DECK) return out;
+  return [...out.slice(0, 2), ...out.slice(out.length - (MAX_VILLAIN_DECK - 2))];
 }

@@ -540,8 +540,15 @@ export class BattleRenderer {
     if (!this.hover || !this.carrying) return;
     const def = heroDef(this.carrying.heroId);
     const { col, row } = this.hover;
+    // Same normalisation as cellBlocked: `walkable` is undefined, not false,
+    // on ordinary heroes, so an un-normalised compare paints every occupied
+    // tile as a valid drop.
     const occupied = state.heroes.some(
-      (h) => h.col === col && h.row === row && heroDef(h.defId).walkable === !!def.walkable,
+      (h) =>
+        h.col === col &&
+        h.row === row &&
+        h.hp > 0 &&
+        !!heroDef(h.defId).walkable === !!def.walkable,
     );
     const ok = !occupied || !!def.instant;
     c.save();

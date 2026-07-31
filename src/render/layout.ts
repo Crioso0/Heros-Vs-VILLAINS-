@@ -67,11 +67,19 @@ export function cardRect(index: number): Rect {
   };
 }
 
-/** Where the villain commander's deploy cards sit in Versus mode. */
-export function villainCardRect(index: number): Rect {
+/**
+ * Where the villain commander's deploy cards sit in Versus mode.
+ *
+ * The column is sized to the deck so it always fits between the board top and
+ * the bottom bar — a fixed pitch pushed larger decks off the bottom of the view.
+ */
+export function villainCardRect(index: number, count: number): Rect {
   const w = 74;
-  const h = 84;
-  return { x: 1272 - w, y: 150 + index * (h + 6), w, h };
+  const top = 150;
+  const bottom = 640;
+  const pitch = Math.min(90, Math.floor((bottom - top) / Math.max(1, count)));
+  const h = Math.max(38, pitch - 6);
+  return { x: 1272 - w, y: top + index * pitch, w, h };
 }
 
 /** Scheme buttons sit in the gap between the card tray and the board. */

@@ -64,10 +64,13 @@ export class CodexScreen implements Screen {
     const count = this.tab === 'heroes' ? heroList.length : VILLAINS.length;
     this.selected = Math.min(this.selected, count - 1);
 
-    // Grid
-    const cols = 8;
+    // Grid — column count is derived so the rows always end above the detail
+    // panel at y=460; a fixed 8 columns spilled a 4th row underneath it, where
+    // cards were hidden but still clickable.
     const cw = 84;
     const ch = 96;
+    const maxRows = 3;
+    const cols = Math.max(8, Math.ceil(count / maxRows));
     for (let i = 0; i < count; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
