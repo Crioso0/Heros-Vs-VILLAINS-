@@ -1,0 +1,20 @@
+{
+  "name": "heroes-vs-villains",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lane-defense game: collectible hero champions defend against waves of villains. Fan project, original character names.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test:sim": "node scripts/run-sim-test.mjs",
+    "test": "npm run typecheck && npm run test:sim"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}
