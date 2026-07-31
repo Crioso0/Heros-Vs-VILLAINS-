@@ -8,6 +8,22 @@
  *   npm run test:sim
  */
 import { Rng, seedFromString } from '../core/rng';
+import {
+  BOARD,
+  BOTTOM,
+  bx,
+  by,
+  cardRect,
+  configureLayout,
+  hqRect,
+  MIN_TAP,
+  schemeButtonRect,
+  SOLAR_BOX,
+  toolRect,
+  TRAY,
+  VIEW,
+  villainCardRect,
+} from '../render/layout';
 import { HEROES, heroDef, STARTER_HEROES } from '../content/heroes';
 import { levelDef, LEVELS, skirmishLevel } from '../content/levels';
 import { VILLAINS } from '../content/villains';
@@ -392,6 +408,119 @@ section('Regressions');
       check(`${world} finale fields a boss`, hasBoss, ids.join(','));
     }
   }
+}
+
+/* ------------------------------------------------------------------ *
+ * Layout — portrait must be reachable, landscape must be untouched
+ * ------------------------------------------------------------------ */
+
+section('Layout');
+{
+  // src/render/layout.ts imports only core/math, so it bundles into this Node
+  // harness. That is deliberate and worth keeping: it is why these run here.
+
+  // Golden: the landscape profile must reproduce the original constants
+  // exactly, or the desktop build silently shifts.
+  configureLayout('landscape', 1280, 720);
+  const golden =
+    VIEW.w === 1280 &&
+    VIEW.h === 720 &&
+    BOARD.x === 190 &&
+    BOARD.y === 150 &&
+    BOARD.cellW === 108 &&
+    BOARD.cellH === 96 &&
+    Math.abs(BOARD.heroH - 96 * 0.92) < 1e-9 &&
+    Math.abs(BOARD.villainH - 96 * 0.94) < 1e-9 &&
+    TRAY.x === 120 &&
+    TRAY.y === 8 &&
+    TRAY.cardW === 78 &&
+    TRAY.cardH === 106 &&
+    SOLAR_BOX.x === 8 &&
+    SOLAR_BOX.w === 104 &&
+    SOLAR_BOX.h === 106;
+  check('landscape layout reproduces the original constants', golden);
+
+  const shovel = toolRect('shovel');
+  check(
+    'landscape tool rects are unchanged',
+    shovel.x === 1218 && shovel.y === 8 && shovel.w === 54 && shovel.h === 54,
+    JSON.stringify(shovel),
+  );
+  const c0 = cardRect(0);
+  const c9 = cardRect(9);
+  check(
+    'landscape card tray is still one row of ten',
+    c0.x === 120 && c0.y === 8 && c9.y === 8 && c9.x === 120 + 9 * 84,
+    JSON.stringify([c0, c9]),
+  );
+
+  // Portrait must fit on real devices.
+  const devices: [string, number, number][] = [
+    ['iPhone 14', 390, 751],
+    ['iPhone SE', 375, 667],
+    ['Pixel', 393, 830],
+    ['iPad', 768, 1004],
+  ];
+  const cols = 9;
+  const rows = 5;
+
+  for (const [name, w, h] of devices) {
+    for (const versusStrip of [false, true]) {
+      configureLayout('portrait', w, h, versusStrip);
+      const tag = `${name}${versusStrip ? ' (versus)' : ''}`;
+
+      // The villain spawn point and the loss line must both be on screen, or
+      // enemies pop into existence mid-lane / never trigger the loss.
+      check(`${tag}: villain spawn is on screen`, bx(cols + 0.6) <= VIEW.w, `${bx(cols + 0.6)}`);
+      check(`${tag}: the loss line is on screen`, bx(-0.35) >= 0, `${bx(-0.35)}`);
+      check(`${tag}: board clears the top bar`, by(0) >= 0);
+      check(`${tag}: board clears the bottom bar`, by(rows) <= BOTTOM.top + 1, `${by(rows)} vs ${BOTTOM.top}`);
+      check(`${tag}: HQ plate is on screen`, hqRect(rows).x >= 0);
+
+      // Every control must be reachable and finger-sized.
+      const controls: [string, { x: number; y: number; w: number; h: number }][] = [
+        ['shovel', toolRect('shovel')],
+        ['pause', toolRect('pause')],
+        ['speed', toolRect('speed')],
+        ['leaf', BOTTOM.leaf],
+        ['overdrive', BOTTOM.od],
+      ];
+      for (let i = 0; i < 10; i++) controls.push([`card${i}`, cardRect(i)]);
+      // The villain commander's controls only exist when its strip does.
+      if (versusStrip) {
+        for (let i = 0; i < 4; i++) controls.push([`scheme${i}`, schemeButtonRect(i)]);
+        for (let i = 0; i < 8; i++) controls.push([`villain${i}`, villainCardRect(i, 8)]);
+      }
+
+      const offscreen = controls.filter(
+        ([, r]) => r.x < 0 || r.y < 0 || r.x + r.w > VIEW.w || r.y + r.h > VIEW.h,
+      );
+      check(`${tag}: every control is inside the view`, offscreen.length === 0, offscreen.map(([n]) => n).join(', '));
+
+      // No two controls may overlap: one tap firing two actions is the exact
+      // failure this whole layout pass exists to remove.
+      const overlaps: string[] = [];
+      for (let i = 0; i < controls.length; i++) {
+        for (let j = i + 1; j < controls.length; j++) {
+          const a = controls[i][1];
+          const b = controls[j][1];
+          if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) {
+            overlaps.push(`${controls[i][0]}/${controls[j][0]}`);
+          }
+        }
+      }
+      check(`${tag}: no two controls overlap`, overlaps.length === 0, overlaps.join(' '));
+
+      // The tray and the villain strip are the two that must be thumb-sized.
+      const small = controls.filter(
+        ([n, r]) => (n.startsWith('card') || n.startsWith('scheme') || n === 'leaf') && Math.min(r.w, r.h) < MIN_TAP * 0.85,
+      );
+      check(`${tag}: primary controls meet the touch minimum`, small.length === 0, small.map(([n]) => n).join(', '));
+    }
+  }
+
+  // Leave the module in the landscape profile for anything that follows.
+  configureLayout('landscape', 1280, 720);
 }
 
 /* ------------------------------------------------------------------ * */

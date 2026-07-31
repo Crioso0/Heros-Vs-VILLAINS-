@@ -8,7 +8,7 @@ import type { BattleState, HeroEntity, VillainEntity } from '../sim/types';
 import { backdropLayer, drawWeather } from './backdrops';
 import { drawHealthBar, drawHero, drawShadow, drawVillain } from './characters';
 import { FxLayer } from './fx';
-import { BOARD, bx, by, VIEW } from './layout';
+import { BOARD, bx, by, healthBarY, hqRect, LAYOUT, pickupTarget, VIEW } from './layout';
 import { alpha, ellipse, mix, roundRect, shade, UI } from './palette';
 
 /**
@@ -57,13 +57,13 @@ export class BattleRenderer {
           if (!overdrive) this.fx.popText(bx(ev.x), by(ev.y) - 60, 'LEAF MODE', ev.color);
           break;
         case 'overdrive':
-          this.fx.popText(VIEW.w / 2, 300, 'OVERDRIVE', UI.gold);
+          this.fx.popText(VIEW.w / 2, by(state.rows * 0.5), 'OVERDRIVE', UI.gold);
           break;
         case 'collect':
           this.fx.burst(bx(ev.x), by(ev.y), 8, ev.kind === 'solar' ? UI.solar : UI.leaf, 0.6);
           break;
         case 'drone':
-          this.fx.burst(BOARD.x - 30, by(ev.row + 0.5), 16, '#cfd8dc', 1);
+          this.fx.burst(BOARD.x - Math.min(30, BOARD.cellW * 0.28), by(ev.row + 0.5), 16, '#cfd8dc', 1);
           break;
         case 'shake':
           this.fx.addShake(ev.power);
@@ -75,7 +75,6 @@ export class BattleRenderer {
           break;
       }
     }
-    void state;
   }
 
   draw(c: CanvasRenderingContext2D, state: BattleState, dt: number): void {
@@ -149,32 +148,43 @@ export class BattleRenderer {
     g.addColorStop(0, 'rgba(20,26,44,0.55)');
     g.addColorStop(1, 'rgba(8,10,20,0.85)');
     c.fillStyle = g;
-    roundRect(c, BOARD.x - 180, BOARD.y - 10, 114, h + 22, 14);
+    const plate = hqRect(state.rows);
+    roundRect(c, plate.x, plate.y, plate.w, plate.h, 14);
     c.fill();
     c.strokeStyle = alpha('#9fb4ff', 0.3);
     c.lineWidth = 2;
     c.stroke();
 
-    // Crest plate: the thing the villains are walking toward.
-    const cx = BOARD.x - 123;
+    // Crest: the thing the villains are walking toward. Scaled to the plate,
+    // which is 114 wide on a desktop and 34 on a phone.
+    const cx = plate.x + plate.w / 2;
     const cy = BOARD.y + h / 2;
+    const k = Math.min(1, plate.w / 76);
     c.save();
     c.fillStyle = alpha('#9fb4ff', 0.16);
     c.beginPath();
-    c.moveTo(cx, cy - 46);
-    c.lineTo(cx + 30, cy - 28);
-    c.quadraticCurveTo(cx + 30, cy + 30, cx, cy + 48);
-    c.quadraticCurveTo(cx - 30, cy + 30, cx - 30, cy - 28);
+    c.moveTo(cx, cy - 46 * k);
+    c.lineTo(cx + 30 * k, cy - 28 * k);
+    c.quadraticCurveTo(cx + 30 * k, cy + 30 * k, cx, cy + 48 * k);
+    c.quadraticCurveTo(cx - 30 * k, cy + 30 * k, cx - 30 * k, cy - 28 * k);
     c.closePath();
     c.fill();
     c.strokeStyle = alpha('#9fb4ff', 0.5);
     c.lineWidth = 2;
     c.stroke();
     c.fillStyle = alpha('#cfe0ff', 0.85);
-    c.font = "800 17px 'Trebuchet MS', sans-serif";
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('HQ', cx, cy + 2);
+    if (LAYOUT.mode === 'portrait') {
+      // 17px of 'HQ' does not fit a 34px strip; run it down the plate instead.
+      c.translate(cx, cy);
+      c.rotate(-Math.PI / 2);
+      c.font = "800 16px 'Trebuchet MS', sans-serif";
+      c.fillText('H Q', 0, 1);
+    } else {
+      c.font = "800 17px 'Trebuchet MS', sans-serif";
+      c.fillText('HQ', cx, cy + 2);
+    }
     c.restore();
   }
 
@@ -302,13 +312,13 @@ export class BattleRenderer {
       act,
       hurt: h.hurt * 4,
       ult: h.ultTime > 0 ? 1 : 0,
-      height: BOARD.cellH * 0.92,
+      height: BOARD.heroH,
       facing: 1,
       frozen,
     });
 
     if (h.hp < h.maxHp) {
-      drawHealthBar(c, x, by(h.row) + 6, BOARD.cellW * 0.6, h.hp / h.maxHp, UI.leaf);
+      drawHealthBar(c, x, healthBarY(h.row), BOARD.cellW * 0.6, h.hp / h.maxHp, UI.leaf);
     }
     if (this.hoverHero === h.id && this.carryingLeaf) {
       c.strokeStyle = UI.leaf;
@@ -364,7 +374,7 @@ export class BattleRenderer {
       act: 0,
       hurt: v.hurt * 5,
       ult: 0,
-      height: BOARD.cellH * 0.94,
+      height: BOARD.villainH,
       facing: -1,
       frozen,
       walk,
@@ -378,14 +388,14 @@ export class BattleRenderer {
     if (v.carriesLeaf) {
       const pulse = 0.5 + Math.sin(this.time * 6) * 0.3;
       c.fillStyle = alpha(UI.leaf, 0.35 * pulse);
-      ellipse(c, x, yBase - BOARD.cellH * 0.45, 34, 44);
+      ellipse(c, x, yBase - BOARD.villainH * 0.5, 34, 44);
       c.fill();
     }
 
     const totalMax = v.maxHp + (def.armor ?? 0) + (def.shield ?? 0);
     const total = v.hp + v.armor + v.shield;
     if (total < totalMax) {
-      const barY = def.boss ? by(v.row) - 4 : by(v.row) + 6;
+      const barY = healthBarY(v.row) + (def.boss ? -10 : 0);
       drawHealthBar(
         c,
         x,
@@ -498,10 +508,9 @@ export class BattleRenderer {
       let scale = 1;
       if (p.claimed) {
         const t = clamp(p.claimT / 0.45, 0, 1);
-        const tx = p.kind === 'solar' ? 60 : 210;
-        const ty = p.kind === 'solar' ? 60 : VIEW.h - 44;
-        x += (tx - x) * t;
-        y += (ty - y) * t;
+        const target = pickupTarget(p.kind);
+        x += (target.x - x) * t;
+        y += (target.y - y) * t;
         scale = 1 - t * 0.5;
       }
       const blink = p.life < 4 && Math.sin(p.life * 18) < 0 ? 0.35 : 1;
@@ -566,7 +575,7 @@ export class BattleRenderer {
         act: 0,
         hurt: 0,
         ult: 0,
-        height: BOARD.cellH * 0.92,
+        height: BOARD.heroH,
         facing: 1,
       });
     }

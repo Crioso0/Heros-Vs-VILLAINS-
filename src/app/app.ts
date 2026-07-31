@@ -1,6 +1,7 @@
 import { sfx } from '../audio/sfx';
+import { resetWeather } from '../render/backdrops';
 import { Progress } from '../game/progress';
-import { VIEW } from '../render/layout';
+import { configureLayout, LAYOUT, VIEW, type LayoutMode } from '../render/layout';
 import { createPointer, type PointerState } from '../ui/widgets';
 
 export interface Screen {
@@ -31,6 +32,13 @@ export class App {
   private offsetX = 0;
   private offsetY = 0;
   private running = false;
+  private resizeQueued = false;
+  /** Park the pointer off-screen once the release frame has been consumed. */
+  private parkPointerAfterFrame = false;
+  /** Set by the battle screen when the villain seat needs its own strip. */
+  versusStrip = false;
+  /** Fired after the orientation profile changes, so screens can reset state. */
+  onLayoutChange: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -40,9 +48,10 @@ export class App {
 
     sfx.enabled = this.progress.data.settings.sfx;
 
-    window.addEventListener('resize', () => this.resize());
+    this.bindViewport();
     this.bindPointer();
     this.bindKeys();
+    this.bindLifecycle();
     this.resize();
   }
 
@@ -70,7 +79,7 @@ export class App {
 
     const c = this.c;
     c.setTransform(1, 0, 0, 1, 0, 0);
-    c.fillStyle = '#05060d';
+    c.fillStyle = '#06070f';
     c.fillRect(0, 0, this.canvas.width, this.canvas.height);
     c.save();
     c.translate(this.offsetX, this.offsetY);
@@ -89,23 +98,100 @@ export class App {
     // Edge-triggered pointer flags last exactly one frame.
     this.pointer.pressed = false;
     this.pointer.released = false;
+    this.pointer.cancelled = false;
+    if (this.parkPointerAfterFrame) {
+      this.parkPointerAfterFrame = false;
+      this.pointer.x = -999;
+      this.pointer.y = -999;
+    }
 
     requestAnimationFrame((t) => this.frame(t));
   }
 
+  /** Recompute the layout now — e.g. a screen changed whether it needs the
+   *  Versus strip, which changes how much room the board gets. */
+  requestLayout(): void {
+    this.resize();
+  }
+
+  /** Coalesce the burst of resize events iOS fires while its URL bar animates. */
+  private requestResize(): void {
+    if (this.resizeQueued) return;
+    this.resizeQueued = true;
+    requestAnimationFrame(() => {
+      this.resizeQueued = false;
+      this.resize();
+    });
+  }
+
+  private bindViewport(): void {
+    window.addEventListener('resize', () => this.requestResize());
+    window.visualViewport?.addEventListener('resize', () => this.requestResize());
+    window.addEventListener('orientationchange', () => {
+      this.requestResize();
+      // iOS reports pre-rotation dimensions on the first tick after the event.
+      setTimeout(() => this.requestResize(), 250);
+    });
+  }
+
   private resize(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-    this.canvas.width = Math.floor(w * dpr);
-    this.canvas.height = Math.floor(h * dpr);
+    // #stage carries the safe-area padding, so its content box is the space the
+    // game may actually use — under the notch and home indicator is not ours.
+    const stage = this.canvas.parentElement;
+    const w = Math.max(1, stage?.clientWidth ?? window.innerWidth);
+    const h = Math.max(1, stage?.clientHeight ?? window.innerHeight);
+
+    // Hysteresis: a near-square window, or an animating URL bar, must not be
+    // able to flip the profile back and forth every frame.
+    const ratio = h / w;
+    const wasPortrait = LAYOUT.mode === 'portrait';
+    const mode: LayoutMode = wasPortrait ? (ratio < 0.95 ? 'landscape' : 'portrait')
+                                         : (ratio > 1.05 ? 'portrait' : 'landscape');
+    const changed = mode !== LAYOUT.mode;
+    configureLayout(mode, w, h, this.versusStrip);
+
+    // 2x is enough for vector art; 2.5x on a 3x phone costs 36% more pixels for
+    // nothing visible.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cw = Math.floor(w * dpr);
+    const ch = Math.floor(h * dpr);
+    if (cw !== this.canvas.width || ch !== this.canvas.height) {
+      // Assigning width/height reallocates and clears the backing store.
+      this.canvas.width = cw;
+      this.canvas.height = ch;
+    }
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
 
-    const scale = Math.min(this.canvas.width / VIEW.w, this.canvas.height / VIEW.h);
+    const scale = Math.min(cw / VIEW.w, ch / VIEW.h);
     this.scale = scale;
-    this.offsetX = (this.canvas.width - VIEW.w * scale) / 2;
-    this.offsetY = (this.canvas.height - VIEW.h * scale) / 2;
+    this.offsetX = (cw - VIEW.w * scale) / 2;
+    this.offsetY = (ch - VIEW.h * scale) / 2;
+
+    if (changed) {
+      resetWeather();
+      // A rotation is a blackout of a second or so with a live simulation
+      // behind it; drop any half-finished gesture.
+      this.activePointerId = null;
+      this.pointer.down = false;
+      this.pointer.pressed = false;
+      this.pointer.released = false;
+      this.pointer.x = -999;
+      this.pointer.y = -999;
+      this.onLayoutChange?.();
+    }
+  }
+
+  private bindLifecycle(): void {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.progress.save();
+      } else {
+        sfx.resume();
+        this.requestResize();
+      }
+    });
+    window.addEventListener('pagehide', () => this.progress.save());
   }
 
   /** Window pixels to logical view coordinates. */
@@ -149,23 +235,35 @@ export class App {
       e.preventDefault();
     });
 
-    const release = (e: PointerEvent) => {
+    this.canvas.addEventListener('pointerup', (e) => {
       if (e.pointerId !== this.activePointerId) return;
       this.activePointerId = null;
       move(e.clientX, e.clientY);
       this.pointer.down = false;
       this.pointer.released = true;
-    };
-    this.canvas.addEventListener('pointerup', release);
-    this.canvas.addEventListener('pointercancel', release);
-    // If capture is lost (OS gesture, pointer leaves the surface) the latch
-    // must still clear, or input is stranded for the rest of the session.
-    this.canvas.addEventListener('lostpointercapture', (e) => {
+      // Touch produces no hover moves, so the pointer would otherwise park at
+      // the release point forever and leave tooltips, hot states and the
+      // placement ghost stuck under a finger that is long gone. It has to
+      // survive the frame that consumes the release, though — on a quick tap
+      // press and release land in the same frame, and clearing the position
+      // here would mean no widget ever sees the tap.
+      if (e.pointerType !== 'mouse') this.parkPointerAfterFrame = true;
+    });
+
+    // A cancel is NOT a completed tap. iOS fires it on edge swipes, Control
+    // Centre pulls, a second finger and the standalone home swipe; treating it
+    // as a release plants heroes and presses buttons the player never touched.
+    const cancel = (e: PointerEvent) => {
       if (e.pointerId !== this.activePointerId) return;
       this.activePointerId = null;
       this.pointer.down = false;
-      this.pointer.released = true;
-    });
+      this.pointer.released = false;
+      this.pointer.cancelled = true;
+      this.pointer.x = -999;
+      this.pointer.y = -999;
+    };
+    this.canvas.addEventListener('pointercancel', cancel);
+    this.canvas.addEventListener('lostpointercapture', cancel);
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   }
 

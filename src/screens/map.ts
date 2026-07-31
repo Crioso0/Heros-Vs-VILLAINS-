@@ -5,7 +5,7 @@ import { LEVELS, levelsOfWorld } from '../content/levels';
 import { WORLDS } from '../content/worlds';
 import { backdropLayer, drawWeather } from '../render/backdrops';
 import { drawHero } from '../render/characters';
-import { VIEW } from '../render/layout';
+import { LAYOUT, VIEW } from '../render/layout';
 import { alpha, roundRect, shade, UI } from '../render/palette';
 import { pointInRect, type Rect } from '../core/math';
 import { button, panel, paragraph, text } from '../ui/widgets';
@@ -43,24 +43,29 @@ export class MapScreen implements Screen {
     c.fillRect(0, 0, VIEW.w, VIEW.h);
 
     const p = this.app.pointer;
+    const portrait = LAYOUT.mode === 'portrait';
 
     text(c, world.name.toUpperCase(), VIEW.w / 2, 74, {
-      size: 42,
+      size: portrait ? 24 : 42,
       align: 'center',
       weight: 800,
+      maxWidth: VIEW.w - 40,
     });
     text(c, world.subtitle, VIEW.w / 2, 100, {
-      size: 14,
+      size: portrait ? 10 : 14,
       align: 'center',
       color: UI.inkDim,
+      maxWidth: VIEW.w - 40,
     });
 
-    // World tabs
+    // World tabs — a 4-across row is 870px wide, so portrait uses a 2x2 grid.
     const tabW = 210;
     const totalW = WORLDS.length * (tabW + 10) - 10;
     for (let i = 0; i < WORLDS.length; i++) {
       const w = WORLDS[i];
-      const r: Rect = { x: VIEW.w / 2 - totalW / 2 + i * (tabW + 10), y: 124, w: tabW, h: 38 };
+      const r: Rect = portrait
+        ? { x: 16 + (i % 2) * 348, y: 140 + Math.floor(i / 2) * 68, w: 340, h: 60 }
+        : { x: VIEW.w / 2 - totalW / 2 + i * (tabW + 10), y: 124, w: tabW, h: 38 };
       const firstLevel = levelsOfWorld(w.id)[0];
       const open = this.app.progress.isLevelAvailable(firstLevel.id, this.allIds);
       const active = i === this.worldIndex;
@@ -72,7 +77,7 @@ export class MapScreen implements Screen {
       c.lineWidth = active ? 2.5 : 1.5;
       c.stroke();
       c.globalAlpha = open ? 1 : 0.4;
-      text(c, open ? w.name : 'LOCKED', r.x + r.w / 2, r.y + 25, {
+      text(c, open ? w.name : 'LOCKED', r.x + r.w / 2, r.y + r.h / 2 + 6, {
         size: 15,
         align: 'center',
         weight: 800,
@@ -87,20 +92,22 @@ export class MapScreen implements Screen {
 
     // Level nodes
     const levels = levelsOfWorld(world.id);
-    const nodeW = 96;
-    const nodeH = 96;
-    const cols = 5;
-    const gridW = cols * (nodeW + 18) - 18;
+    const nodeW = portrait ? 156 : 96;
+    const nodeH = portrait ? 120 : 96;
+    const cols = portrait ? 4 : 5;
+    const gapX = portrait ? 12 : 18;
+    const gapY = portrait ? 18 : 22;
+    const gridW = cols * (nodeW + gapX) - gapX;
     const startX = VIEW.w / 2 - gridW / 2;
-    const startY = 200;
+    const startY = portrait ? 290 : 200;
 
     for (let i = 0; i < levels.length; i++) {
       const level = levels[i];
       const col = i % cols;
       const row = Math.floor(i / cols);
       const r: Rect = {
-        x: startX + col * (nodeW + 18),
-        y: startY + row * (nodeH + 22),
+        x: startX + col * (nodeW + gapX),
+        y: startY + row * (nodeH + gapY),
         w: nodeW,
         h: nodeH,
       };
@@ -127,13 +134,13 @@ export class MapScreen implements Screen {
             : 'rgba(255,255,255,0.12)';
       c.stroke();
       c.globalAlpha = available ? 1 : 0.4;
-      text(c, boss ? 'BOSS' : String(level.order), r.x + r.w / 2, r.y + 44, {
+      text(c, boss ? 'BOSS' : String(level.order), r.x + r.w / 2, r.y + r.h * 0.46, {
         size: boss ? 20 : 34,
         align: 'center',
         weight: 800,
         color: boss ? UI.danger : UI.ink,
       });
-      text(c, `${level.waves.length} waves`, r.x + r.w / 2, r.y + 66, {
+      text(c, `${level.waves.length} waves`, r.x + r.w / 2, r.y + r.h * 0.69, {
         size: 10,
         align: 'center',
         color: UI.inkDim,
@@ -149,12 +156,12 @@ export class MapScreen implements Screen {
         !this.app.progress.isUnlocked(level.reward)
       ) {
         c.globalAlpha = available ? 0.9 : 0.3;
-        drawHero(c, HERO_BY_ID[level.reward].art, r.x + 18, r.y + r.h - 6, {
+        drawHero(c, HERO_BY_ID[level.reward].art, r.x + 20, r.y + r.h - 6, {
           time: this.t,
           act: 0,
           hurt: 0,
           ult: 0,
-          height: 34,
+          height: portrait ? 44 : 34,
           facing: 1,
         });
       }
@@ -167,22 +174,32 @@ export class MapScreen implements Screen {
     }
 
     // Footer
-    panel(c, { x: 20, y: VIEW.h - 96, w: VIEW.w - 40, h: 78 }, { radius: 12 });
+    const footTop = portrait ? VIEW.h - 200 : VIEW.h - 96;
+    panel(c, { x: 20, y: footTop, w: VIEW.w - 40, h: portrait ? 116 : 78 }, { radius: 12 });
     paragraph(
       c,
       levels[0]?.intro ??
         'Pick a stage. Clear it to recruit the hero shown on the node.',
-      40,
-      VIEW.h - 62,
-      VIEW.w - 320,
-      { size: 14 },
+      portrait ? 36 : 40,
+      footTop + 34,
+      portrait ? VIEW.w - 72 : VIEW.w - 320,
+      { size: portrait ? 11 : 14 },
     );
 
-    if (button(c, p, { x: VIEW.w - 260, y: VIEW.h - 78, w: 110, h: 42 }, 'BACK', { small: true })) {
+    // Well separated in portrait: UNLOCK ALL is a destructive progression
+    // change and must not sit a thumb-width from BACK.
+    const backRect: Rect = portrait
+      ? { x: 16, y: VIEW.h - 100, w: 200, h: 84 }
+      : { x: VIEW.w - 260, y: VIEW.h - 78, w: 110, h: 42 };
+    const unlockRect: Rect = portrait
+      ? { x: VIEW.w - 216, y: VIEW.h - 100, w: 200, h: 84 }
+      : { x: VIEW.w - 140, y: VIEW.h - 78, w: 110, h: 42 };
+
+    if (button(c, p, backRect, 'BACK', { small: true })) {
       this.app.setScreen(new MenuScreen(this.app));
     }
     if (
-      button(c, p, { x: VIEW.w - 140, y: VIEW.h - 78, w: 110, h: 42 }, 'UNLOCK ALL', {
+      button(c, p, unlockRect, 'UNLOCK ALL', {
         small: true,
         accent: UI.leaf,
       })

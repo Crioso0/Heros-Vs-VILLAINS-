@@ -7,7 +7,7 @@ import { heroDef } from '../content/heroes';
 import { worldDef } from '../content/worlds';
 import { Match } from '../net/match';
 import { BattleRenderer } from '../render/renderer';
-import { bx, by, screenToCell, VIEW } from '../render/layout';
+import { bx, by, LAYOUT, screenToCell, VIEW } from '../render/layout';
 import { UI } from '../render/palette';
 import type { HeroId, LevelDef, VillainId } from '../sim/types';
 import { Hud, type HudAction } from '../ui/hud';
@@ -68,6 +68,28 @@ export class BattleScreen implements Screen {
     if (versus?.ai) {
       this.director = new Director({ aggression: versus.aggression, seed: 1337 });
     }
+    // The hot-seat villain seat needs its own strip in portrait, which changes
+    // how much vertical room the board gets.
+    app.versusStrip = !!versus && !versus.ai;
+    app.requestLayout();
+
+    // A rotation is a blackout of about a second with a live simulation behind
+    // it: drop any half-made gesture and hand control back to the player.
+    app.onLayoutChange = () => {
+      this.selectedCard = null;
+      this.dragging = false;
+      this.shovel = false;
+      this.carryingLeaf = false;
+      this.leafArmedThisPress = false;
+      this.selectedVillainCard = null;
+      this.selectedScheme = null;
+      if (!this.resolved) this.paused = true;
+    };
+  }
+
+  dispose(): void {
+    this.app.onLayoutChange = null;
+    this.app.versusStrip = false;
   }
 
   /* ---------------------------------------------------------------- *
@@ -172,10 +194,23 @@ export class BattleScreen implements Screen {
       return;
     }
 
+    // Collecting solar and leaves takes priority over every other press, and
+    // works with a card armed: on touch a tap on an orb over the lawn would
+    // otherwise plant a hero there and lose the orb.
+    if (p.pressed && !this.carryingLeaf) {
+      const pick = this.pickupUnder(p.x, p.y);
+      if (pick) {
+        this.match.issue({ t: 'collect', player: 0, pickupId: pick });
+        return;
+      }
+    }
+
     switch (action?.kind) {
       case 'pickCard':
-        this.selectedCard = action.index ?? null;
-        this.dragging = true;
+        // Tapping the armed card again disarms it. Without this there is no way
+        // to cancel a selection on a touch screen.
+        this.selectedCard = action.index === this.selectedCard ? null : (action.index ?? null);
+        this.dragging = this.selectedCard !== null;
         this.shovel = false;
         this.carryingLeaf = false;
         return;
@@ -227,15 +262,6 @@ export class BattleScreen implements Screen {
           });
         }
         this.selectedVillainCard = null;
-        return;
-      }
-    }
-
-    // Collecting solar and leaves: a press anywhere near a pickup takes it.
-    if (p.pressed && !this.carryingLeaf && this.selectedCard === null && !this.shovel) {
-      const pick = this.pickupUnder(p.x, p.y);
-      if (pick) {
-        this.match.issue({ t: 'collect', player: 0, pickupId: pick });
         return;
       }
     }
@@ -347,7 +373,8 @@ export class BattleScreen implements Screen {
 
   private pickupUnder(x: number, y: number): number | null {
     let best: number | null = null;
-    let bestD = 44 * 44;
+    const reach = LAYOUT.mode === 'portrait' ? 72 : 52;
+    let bestD = reach * reach;
     for (const p of this.match.state.pickups) {
       if (p.claimed) continue;
       const d = dist2(x, y, bx(p.x), by(p.y));
@@ -376,7 +403,19 @@ export class BattleScreen implements Screen {
   private drawVersusStatus(c: CanvasRenderingContext2D): void {
     // Sits directly above the villain deploy column, clear of the scheme row
     // and inside the right edge of the view.
-    text(c, this.opts.versus?.ai ? 'VILLAIN AI' : 'PLAYER 2', VIEW.w - 8, 143, {
+    const portrait = LAYOUT.mode === 'portrait';
+    const label = this.opts.versus?.ai ? 'VILLAIN AI' : 'PLAYER 2';
+    if (portrait) {
+      if (!this.opts.versus?.ai) return; // the strip header already says it
+      text(c, label, VIEW.w - 12, TOP_BAR_LABEL_Y, {
+        size: 10,
+        align: 'right',
+        color: UI.danger,
+        weight: 800,
+      });
+      return;
+    }
+    text(c, label, VIEW.w - 8, 143, {
       size: 10,
       align: 'right',
       color: UI.danger,
@@ -387,19 +426,28 @@ export class BattleScreen implements Screen {
   private drawPause(c: CanvasRenderingContext2D): void {
     c.fillStyle = 'rgba(4,7,16,0.72)';
     c.fillRect(0, 0, VIEW.w, VIEW.h);
-    const r: Rect = { x: VIEW.w / 2 - 190, y: 220, w: 380, h: 250 };
+    const portrait = LAYOUT.mode === 'portrait';
+    const w = portrait ? VIEW.w - 48 : 380;
+    const h = portrait ? 380 : 250;
+    const r: Rect = { x: VIEW.w / 2 - w / 2, y: VIEW.h / 2 - h / 2, w, h };
     panel(c, r, { title: 'PAUSED' });
     const p = this.app.pointer;
-    if (button(c, p, { x: r.x + 40, y: r.y + 70, w: r.w - 80, h: 48 }, 'RESUME')) {
+    const bh = portrait ? 84 : 48;
+    const gap = portrait ? 96 : 58;
+    if (button(c, p, { x: r.x + 40, y: r.y + 70, w: r.w - 80, h: bh }, 'RESUME')) {
       this.paused = false;
     }
     if (
-      button(c, p, { x: r.x + 40, y: r.y + 128, w: r.w - 80, h: 44 }, 'RESTART', { small: true })
+      button(c, p, { x: r.x + 40, y: r.y + 70 + gap, w: r.w - 80, h: bh }, 'RESTART', {
+        small: true,
+      })
     ) {
       this.app.setScreen(new BattleScreen(this.app, this.opts));
     }
     if (
-      button(c, p, { x: r.x + 40, y: r.y + 180, w: r.w - 80, h: 44 }, 'QUIT TO MAP', { small: true })
+      button(c, p, { x: r.x + 40, y: r.y + 70 + gap * 2, w: r.w - 80, h: bh }, 'QUIT TO MAP', {
+        small: true,
+      })
     ) {
       this.app.setScreen(new MapScreen(this.app));
     }
@@ -411,14 +459,18 @@ export class BattleScreen implements Screen {
     c.fillStyle = won ? 'rgba(8,26,16,0.78)' : 'rgba(28,6,10,0.8)';
     c.fillRect(0, 0, VIEW.w, VIEW.h);
 
-    const r: Rect = { x: VIEW.w / 2 - 260, y: 150, w: 520, h: 420 };
+    const portrait = LAYOUT.mode === 'portrait';
+    const w = portrait ? VIEW.w - 40 : 520;
+    const h = portrait ? 640 : 420;
+    const r: Rect = { x: VIEW.w / 2 - w / 2, y: VIEW.h / 2 - h / 2, w, h };
     panel(c, r, { accent: won ? UI.leaf : UI.danger });
 
     text(c, won ? 'CITY SECURED' : 'THE VILLAINS GOT THROUGH', VIEW.w / 2, r.y + 62, {
-      size: 34,
+      size: portrait ? 20 : 34,
       align: 'center',
       weight: 800,
       color: won ? UI.leaf : UI.danger,
+      maxWidth: r.w - 40,
     });
     text(
       c,
@@ -434,40 +486,51 @@ export class BattleScreen implements Screen {
       ['Time', `${Math.floor(state.time / 60)}m ${Math.floor(state.time % 60)}s`],
       ['Heroes standing', String(state.heroes.length)],
     ];
+    const rowPitch = portrait ? 44 : 26;
     stats.forEach(([label, value], i) => {
-      const y = r.y + 132 + i * 26;
+      const y = r.y + 132 + i * rowPitch;
       text(c, label, r.x + 44, y, { size: 15, color: UI.inkDim });
       text(c, value, r.x + r.w - 44, y, { size: 15, align: 'right', weight: 800 });
     });
 
+    const statsBottom = r.y + 132 + stats.length * rowPitch;
     if (this.rewarded) {
       const def = heroDef(this.rewarded);
-      text(c, 'NEW HERO RECRUITED', VIEW.w / 2, r.y + 262, {
+      text(c, 'NEW HERO RECRUITED', VIEW.w / 2, statsBottom + 26, {
         size: 13,
         align: 'center',
         color: UI.gold,
         weight: 800,
       });
-      text(c, def.name, VIEW.w / 2, r.y + 290, { size: 26, align: 'center', weight: 800 });
-      paragraph(c, def.tagline, r.x + 60, r.y + 314, r.w - 120, {
+      text(c, def.name, VIEW.w / 2, statsBottom + 56, { size: 26, align: 'center', weight: 800 });
+      // paragraph() passes x straight to fillText, so a centred paragraph must
+      // be given the centre, not the left edge.
+      paragraph(c, def.tagline, r.x + r.w / 2, statsBottom + 82, r.w - 120, {
         size: 13,
         align: 'center',
       });
     }
 
     const p = this.app.pointer;
-    const by0 = r.y + r.h - 66;
-    if (button(c, p, { x: r.x + 40, y: by0, w: 140, h: 48 }, won ? 'CONTINUE' : 'MAP')) {
+    // Stacked full-width in portrait; a 3-across row is 26 CSS px tall on a phone.
+    const mk = (i: number): Rect =>
+      portrait
+        ? { x: r.x + 40, y: r.y + r.h - 280 + i * 90, w: r.w - 80, h: 84 }
+        : { x: r.x + 40 + i * 150, y: r.y + r.h - 66, w: 140, h: 48 };
+    if (button(c, p, mk(0), won ? 'CONTINUE' : 'MAP')) {
       this.app.setScreen(new MapScreen(this.app));
     }
-    if (button(c, p, { x: r.x + 190, y: by0, w: 140, h: 48 }, 'RETRY')) {
+    if (button(c, p, mk(1), 'RETRY')) {
       this.app.setScreen(new BattleScreen(this.app, this.opts));
     }
-    if (button(c, p, { x: r.x + 340, y: by0, w: 140, h: 48 }, 'MENU', { small: true })) {
+    if (button(c, p, mk(2), 'MENU', { small: true })) {
       this.app.setScreen(new MenuScreen(this.app));
     }
   }
 }
+
+/** Sits under the portrait top bar, clear of the tools row. */
+const TOP_BAR_LABEL_Y = 104;
 
 function formatClock(seconds: number): string {
   const mm = Math.floor(seconds / 60);

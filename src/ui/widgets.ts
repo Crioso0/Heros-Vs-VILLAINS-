@@ -1,10 +1,16 @@
 import { pointInRect, type Rect } from '../core/math';
+import { UI_SCALE } from '../render/layout';
 import { alpha, roundRect, shade, UI } from '../render/palette';
 
 /**
  * Tiny immediate-mode UI. The app owns one PointerState, widgets read it while
  * drawing and report clicks. No retained widget tree, no DOM — which keeps the
  * whole interface inside the canvas and therefore identical on every platform.
+ *
+ * Every font size passed in is multiplied by UI_SCALE, which is 1 in landscape
+ * and 1.6 in portrait. Call sites therefore quote one set of numbers and the
+ * portrait profile stays legible on a phone without a second set of literals to
+ * keep in sync.
  */
 export interface PointerState {
   x: number;
@@ -14,13 +20,24 @@ export interface PointerState {
   pressed: boolean;
   /** True for the single frame it came up. */
   released: boolean;
+  /** True for the single frame the gesture was cancelled by the OS. */
+  cancelled: boolean;
   /** Where the current press started. */
   downX: number;
   downY: number;
 }
 
 export function createPointer(): PointerState {
-  return { x: -999, y: -999, down: false, pressed: false, released: false, downX: 0, downY: 0 };
+  return {
+    x: -999,
+    y: -999,
+    down: false,
+    pressed: false,
+    released: false,
+    cancelled: false,
+    downX: 0,
+    downY: 0,
+  };
 }
 
 export interface ButtonStyle {
@@ -54,7 +71,7 @@ export function button(
   c.stroke();
 
   c.fillStyle = style.text ?? UI.ink;
-  c.font = `700 ${style.small ? 14 : 18}px 'Trebuchet MS', sans-serif`;
+  c.font = `700 ${Math.round((style.small ? 14 : 18) * UI_SCALE.v)}px 'Trebuchet MS', sans-serif`;
   c.textAlign = 'center';
   c.textBaseline = 'middle';
   c.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + (active ? 2 : 0));
@@ -78,7 +95,7 @@ export function panel(
   c.stroke();
   if (opts.title) {
     c.fillStyle = UI.ink;
-    c.font = "700 20px 'Trebuchet MS', sans-serif";
+    c.font = `700 ${Math.round(20 * UI_SCALE.v)}px 'Trebuchet MS', sans-serif`;
     c.textAlign = 'left';
     c.textBaseline = 'alphabetic';
     c.fillText(opts.title, rect.x + 18, rect.y + 30);
@@ -106,7 +123,7 @@ export function text(
   } = {},
 ): void {
   c.save();
-  c.font = `${opts.weight ?? 600} ${opts.size ?? 16}px 'Trebuchet MS', sans-serif`;
+  c.font = `${opts.weight ?? 600} ${Math.round((opts.size ?? 16) * UI_SCALE.v)}px 'Trebuchet MS', sans-serif`;
   c.fillStyle = opts.color ?? UI.ink;
   c.textAlign = opts.align ?? 'left';
   c.textBaseline = 'alphabetic';
@@ -124,8 +141,8 @@ export function paragraph(
   maxWidth: number,
   opts: { size?: number; color?: string; lineHeight?: number; align?: CanvasTextAlign } = {},
 ): number {
-  const size = opts.size ?? 15;
-  const lh = opts.lineHeight ?? size * 1.45;
+  const size = Math.round((opts.size ?? 15) * UI_SCALE.v);
+  const lh = opts.lineHeight ? opts.lineHeight * UI_SCALE.v : size * 1.45;
   c.save();
   c.font = `500 ${size}px 'Trebuchet MS', sans-serif`;
   c.fillStyle = opts.color ?? UI.inkDim;
@@ -176,10 +193,10 @@ export function meter(
   }
   if (label) {
     c.fillStyle = UI.ink;
-    c.font = "700 12px 'Trebuchet MS', sans-serif";
+    c.font = `700 ${Math.round(12 * UI_SCALE.v)}px 'Trebuchet MS', sans-serif`;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 0.5);
+    c.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 0.5, rect.w - 12);
   }
   c.restore();
 }

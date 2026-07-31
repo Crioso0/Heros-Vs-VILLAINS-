@@ -6,7 +6,7 @@ import { VILLAINS } from '../content/villains';
 import { backdropLayer } from '../render/backdrops';
 import { drawHero, drawVillain } from '../render/characters';
 import { drawLeafGlyph } from '../render/renderer';
-import { VIEW } from '../render/layout';
+import { LAYOUT, VIEW } from '../render/layout';
 import { alpha, roundRect, UI } from '../render/palette';
 import { worldDef } from '../content/worlds';
 import { button, panel, paragraph, text } from '../ui/widgets';
@@ -30,14 +30,20 @@ export class CodexScreen implements Screen {
     c.fillRect(0, 0, VIEW.w, VIEW.h);
 
     const p = this.app.pointer;
-    text(c, 'CODEX', 40, 58, { size: 34, weight: 800 });
+    const portrait = LAYOUT.mode === 'portrait';
+    text(c, 'CODEX', portrait ? 20 : 40, portrait ? 50 : 58, {
+      size: portrait ? 20 : 34,
+      weight: 800,
+    });
 
     const tabs: ['heroes' | 'villains', string][] = [
       ['heroes', `HEROES (${HEROES.filter((h) => !h.hidden).length})`],
       ['villains', `VILLAINS (${VILLAINS.length})`],
     ];
     tabs.forEach(([id, label], i) => {
-      const r: Rect = { x: 220 + i * 190, y: 30, w: 180, h: 40 };
+      const r: Rect = portrait
+        ? { x: 16 + i * 236, y: 100, w: 228, h: 60 }
+        : { x: 220 + i * 190, y: 30, w: 180, h: 40 };
       const active = this.tab === id;
       c.save();
       roundRect(c, r.x, r.y, r.w, r.h, 8);
@@ -46,7 +52,7 @@ export class CodexScreen implements Screen {
       c.strokeStyle = active ? UI.gold : 'rgba(255,255,255,0.15)';
       c.lineWidth = active ? 2.5 : 1.5;
       c.stroke();
-      text(c, label, r.x + r.w / 2, r.y + 26, {
+      text(c, label, r.x + r.w / 2, r.y + r.h / 2 + 6, {
         size: 14,
         align: 'center',
         weight: 800,
@@ -67,14 +73,19 @@ export class CodexScreen implements Screen {
     // Grid — column count is derived so the rows always end above the detail
     // panel at y=460; a fixed 8 columns spilled a 4th row underneath it, where
     // cards were hidden but still clickable.
-    const cw = 84;
-    const ch = 96;
-    const maxRows = 3;
-    const cols = Math.max(8, Math.ceil(count / maxRows));
+    const cw = portrait ? 108 : 84;
+    const ch = portrait ? 118 : 96;
+    const gridTop = portrait ? 180 : 96;
+    const detailTop = portrait ? VIEW.h - 360 : VIEW.h - 260;
+    // Derive columns from the width available, then rows from what is left
+    // above the detail panel — a fixed column count cannot fit both views.
+    const cols = Math.max(1, Math.floor((VIEW.w - 80 + 10) / (cw + 10)));
+    const maxRows = Math.max(1, Math.floor((detailTop - gridTop - 10) / (ch + 10)));
     for (let i = 0; i < count; i++) {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const r: Rect = { x: 40 + col * (cw + 10), y: 96 + row * (ch + 10), w: cw, h: ch };
+      if (row >= maxRows) continue;
+      const r: Rect = { x: 40 + col * (cw + 10), y: gridTop + row * (ch + 10), w: cw, h: ch };
       const active = this.selected === i;
       const hot = pointInRect(p.x, p.y, r);
       const locked =
@@ -133,7 +144,14 @@ export class CodexScreen implements Screen {
     }
 
     // Detail
-    const dr: Rect = { x: 40, y: VIEW.h - 260, w: VIEW.w - 80, h: 190 };
+    const dr: Rect = portrait
+      ? { x: 16, y: detailTop, w: VIEW.w - 32, h: 330 }
+      : { x: 40, y: detailTop, w: VIEW.w - 80, h: 190 };
+    // In portrait the right-hand column of the panel restacks underneath.
+    const colX = portrait ? dr.x + 24 : dr.x + 800;
+    const colY = portrait ? dr.y + 190 : dr.y;
+    const colW = portrait ? dr.w - 48 : 340;
+    const bodyW = portrait ? dr.w - 200 : 560;
     if (this.tab === 'heroes') {
       const def = heroList[this.selected];
       const locked = !this.app.progress.isUnlocked(def.id);
@@ -154,17 +172,18 @@ export class CodexScreen implements Screen {
         dr.y + 68,
         { size: 12, color: UI.inkDim, weight: 800 },
       );
-      paragraph(c, locked ? 'Not yet recruited.' : def.tagline, dr.x + 190, dr.y + 96, 560, {
+      paragraph(c, locked ? 'Not yet recruited.' : def.tagline, dr.x + 190, dr.y + 96, bodyW, {
         size: 14,
       });
       if (def.ultimate && !locked) {
-        drawLeafGlyph(c, dr.x + 800, dr.y + 44, 12);
-        text(c, `LEAF MODE · ${def.ultimate.name}`, dr.x + 822, dr.y + 50, {
+        drawLeafGlyph(c, colX, colY + 44, 12);
+        text(c, `LEAF MODE · ${def.ultimate.name}`, colX + 22, colY + 50, {
           size: 15,
           weight: 800,
           color: UI.leaf,
+          maxWidth: colW - 22,
         });
-        paragraph(c, def.ultimate.description, dr.x + 800, dr.y + 78, 340, { size: 13 });
+        paragraph(c, def.ultimate.description, colX, colY + 78, colW, { size: 13 });
       }
     } else {
       const def = VILLAINS[this.selected];
@@ -191,16 +210,20 @@ export class CodexScreen implements Screen {
         dr.y + 68,
         { size: 12, color: UI.inkDim, weight: 800 },
       );
-      paragraph(c, def.tagline, dr.x + 190, dr.y + 96, 560, { size: 14 });
-      text(c, `ABILITY · ${abilityLabel(def.ability)}`, dr.x + 800, dr.y + 50, {
+      paragraph(c, def.tagline, dr.x + 190, dr.y + 96, bodyW, { size: 14 });
+      text(c, `ABILITY · ${abilityLabel(def.ability)}`, colX, colY + 50, {
         size: 15,
         weight: 800,
         color: UI.danger,
+        maxWidth: colW,
       });
-      paragraph(c, abilityText(def.ability), dr.x + 800, dr.y + 78, 340, { size: 13 });
+      paragraph(c, abilityText(def.ability), colX, colY + 78, colW, { size: 13 });
     }
 
-    if (button(c, p, { x: VIEW.w - 180, y: 30, w: 140, h: 40 }, 'BACK', { small: true })) {
+    const backRect: Rect = portrait
+      ? { x: VIEW.w - 156, y: 24, w: 140, h: 60 }
+      : { x: VIEW.w - 180, y: 30, w: 140, h: 40 };
+    if (button(c, p, backRect, 'BACK', { small: true })) {
       this.app.setScreen(new MenuScreen(this.app));
     }
   }

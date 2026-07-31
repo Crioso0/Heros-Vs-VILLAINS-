@@ -42,7 +42,13 @@ export function backdropLayer(world: WorldDef, w: number, h: number): HTMLCanvas
   }
 
   // Keep the cache small — worlds are few and sizes change on resize only.
-  if (cache.size > 8) cache.clear();
+  // Evict the oldest entry rather than clearing: a full clear forces every
+  // skyline to be repainted procedurally at an unpredictable moment.
+  while (cache.size >= 12) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
   cache.set(key, canvas);
   return canvas;
 }
@@ -449,6 +455,16 @@ function paintGround(
 
 const drops: { x: number; y: number; v: number; len: number }[] = [];
 const motes: { x: number; y: number; vx: number; vy: number; r: number }[] = [];
+
+/**
+ * Drop the weather particles so they are reseeded against the new view size.
+ * They are seeded once against whatever w/h they first saw, so after a rotation
+ * a good fraction of them sit outside the visible area.
+ */
+export function resetWeather(): void {
+  drops.length = 0;
+  motes.length = 0;
+}
 
 export function drawWeather(
   c: CanvasRenderingContext2D,

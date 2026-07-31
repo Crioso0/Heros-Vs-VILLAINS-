@@ -57,7 +57,8 @@ export class Sfx {
       if (!Ctor) return;
       this.audio = new Ctor();
     }
-    if (this.audio.state === 'suspended') void this.audio.resume();
+    // iOS uses a non-standard 'interrupted' state after a call or backgrounding.
+    if (this.audio.state !== 'running') void this.audio.resume();
   }
 
   play(id: string): void {

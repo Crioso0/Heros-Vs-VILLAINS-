@@ -10,7 +10,9 @@
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "test:sim": "node scripts/run-sim-test.mjs",
-    "test": "npm run typecheck && npm run test:sim"
+    "test": "npm run typecheck && npm run test:sim",
+    "icons": "node scripts/gen-icons.mjs",
+    "prebuild": "node scripts/gen-icons.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

@@ -12,6 +12,13 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
+**On a phone:** it is a PWA. Open the deployed URL in Safari or Chrome and use
+Share → Add to Home Screen, and it installs as a real app — its own icon, no
+browser chrome, and playable offline. Portrait and landscape are both first-class
+layouts, so it works whichever way you hold it. See
+[docs/NATIVE.md](docs/NATIVE.md) for publishing and the one-time GitHub Pages
+setup.
+
 ## What's in it
 
 - **The full loop.** Collect solar, pick cards, place heroes on a 9×5 lawn, hold
@@ -35,17 +42,20 @@ npm run dev      # http://localhost:5173
 
 | Input | Action |
 | --- | --- |
-| Click / tap a card, then a tile | Place a hero (drag also works) |
-| Click a falling orb | Collect solar |
-| Click a Leaf in the tray, then a hero | Leaf Mode |
+| Click / tap a card, then a tile | Place a hero (drag also works; tap the card again to cancel) |
+| Click a falling orb | Collect solar — works even with a card armed |
+| Click the Leaf button, then a hero | Leaf Mode |
 | `Space` | Overdrive — every ultimate at once |
 | `1`–`9` | Select a card |
 | `F` | Pick up a Leaf |
 | `S` | Shovel |
 | `P` / `Esc` | Pause |
 
-In Versus the villain player uses the column on the right: pick a villain, then
-click the lane to send it in. Schemes sit above the board.
+In Versus the villain player picks a villain then taps the lane to send it in —
+from a column on the right in landscape, or a strip under the board in portrait.
+
+On a phone everything is tap-driven: tap a card then a tile, tap the card again
+to cancel, tap orbs to collect them.
 
 ## Scripts
 
@@ -64,8 +74,16 @@ the same commands produce a byte-identical state fingerprint.
 ## How it's built
 
 TypeScript and one `<canvas>`. No engine, no runtime dependencies, no art assets
-— every character, backdrop and sound effect is generated procedurally at
-runtime. The production build is ~122 KB of JavaScript, ~39 KB gzipped.
+— every character, backdrop, sound effect and app icon is generated
+procedurally. The production build is ~131 KB of JavaScript (~42 KB gzipped)
+plus 13 KB of generated PNG icons, which is small enough that the service worker
+precaches the entire game for offline play.
+
+The interface has two layout profiles — 1280×720 landscape and 720×H portrait —
+selected on resize and rotation. Both are asserted in the test suite: the
+landscape profile must stay byte-identical to its original constants, and the
+portrait profile must put every control on screen, above the 44pt touch minimum,
+and non-overlapping, on four device sizes.
 
 The important structural decision is that the **simulation is pure**: fixed
 60 Hz timestep, seeded PRNG, no DOM, no wall-clock reads, no `Math.random`. The
@@ -81,17 +99,18 @@ or eventually a player across the internet without game logic changing.
 
 ## Status
 
-Playable and tested end to end in a browser: campaign, deck building, Leaf Mode,
-Overdrive, Versus against the AI and hotseat, codex, save/progress.
+Playable and tested end to end in a browser, on desktop and on a phone-sized
+viewport in both orientations: campaign, deck building, Leaf Mode, Overdrive,
+Versus against the AI and hotseat, codex, save/progress, and PWA install.
 
 Not done yet, in rough priority order:
 
 1. **Networked Versus.** The seams are in place (`Transport`, tick-stamped
    commands, determinism test, checksums); it needs a socket transport, empty
    turn messages, and a lobby. See [docs/MULTIPLAYER.md](docs/MULTIPLAYER.md).
-2. **Native builds.** Configuration and instructions are written up in
-   [docs/NATIVE.md](docs/NATIVE.md), but neither shell has been built here — that
-   needs a Rust toolchain and Xcode/Android Studio.
+2. **Native app-store builds.** Installing from the browser works today; the
+   Tauri and Capacitor shells are written up in [docs/NATIVE.md](docs/NATIVE.md)
+   but not built here — that needs a Rust toolchain and Xcode/Android Studio.
 3. **Balance.** Tuned against the bot in `src/dev/simSmoke.ts`, not against
    humans. The late campaign in particular wants real playtesting.
 4. **Music.** Sound effects are synthesised; there is no soundtrack.

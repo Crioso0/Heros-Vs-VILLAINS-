@@ -5,10 +5,17 @@ import { SCHEMES } from '../content/schemes';
 import { drawHero, drawVillain } from '../render/characters';
 import { drawLeafGlyph } from '../render/renderer';
 import {
+  BOARD,
+  BOTTOM,
   cardRect,
+  LAYOUT,
   laneStripRect,
+  MAX_LEAVES,
   schemeButtonRect,
   SOLAR_BOX,
+  toolRect,
+  TRAY,
+  VERSUS,
   VIEW,
   villainCardRect,
 } from '../render/layout';
@@ -43,12 +50,6 @@ export interface HudInput {
   /** Replaces the wave meter when a mode has no wave list (Versus). */
   progressOverride?: { ratio: number; label: string; caption: string };
 }
-
-/** Bottom-bar geometry. Derived so the leaf row and the meter cannot collide. */
-const LEAF_ROW_X = 20;
-const LEAF_SLOT_PITCH = 34;
-const MAX_LEAVES = 9;
-const OVERDRIVE_X = LEAF_ROW_X + MAX_LEAVES * LEAF_SLOT_PITCH + 10;
 
 export class Hud {
   /** Populated during draw so the battle screen can hit-test cheaply. */
@@ -137,34 +138,38 @@ export class Hud {
       c.fill();
       c.clip();
 
-      // Portrait
+      // Portrait figure, name plate and cost pill all derive from the card, so
+      // the 128x132 phone card and the 78x106 desktop card share one recipe.
+      const plateH = Math.round(TRAY.cardH * 0.17);
+      const costH = Math.round(TRAY.cardH * 0.13);
       c.save();
       c.globalAlpha = usable ? 1 : 0.55;
-      drawHero(c, def.art, r.x + r.w / 2, r.y + r.h - 26, {
+      drawHero(c, def.art, r.x + r.w / 2, r.y + r.h - plateH - costH + 4, {
         time: input.time + i,
         act: 0,
         hurt: 0,
         ult: 0,
-        height: 74,
+        height: TRAY.cardH * 0.7,
         facing: 1,
       });
       c.restore();
 
       // Name plate
       c.fillStyle = 'rgba(6,9,18,0.82)';
-      c.fillRect(0, r.y + r.h - 32, VIEW.w, 18);
-      text(c, def.name.toUpperCase(), r.x + r.w / 2, r.y + r.h - 19, {
+      c.fillRect(r.x, r.y + r.h - plateH - costH - 2, r.w, plateH);
+      text(c, def.name.toUpperCase(), r.x + r.w / 2, r.y + r.h - costH - plateH * 0.35, {
         size: 9,
         align: 'center',
         color: usable ? UI.ink : UI.inkDim,
         weight: 800,
+        maxWidth: r.w - 6,
       });
 
       // Cost
       c.fillStyle = affordable ? UI.solar : '#7c6a3a';
-      roundRect(c, r.x + 4, r.y + r.h - 15, r.w - 8, 13, 6);
+      roundRect(c, r.x + 4, r.y + r.h - costH - 2, r.w - 8, costH, costH / 2);
       c.fill();
-      text(c, String(def.cost), r.x + r.w / 2, r.y + r.h - 5, {
+      text(c, String(def.cost), r.x + r.w / 2, r.y + r.h - costH * 0.28 - 3, {
         size: 11,
         align: 'center',
         color: '#20180a',
@@ -196,10 +201,13 @@ export class Hud {
       if (hot && p.pressed && usable) action = { kind: 'pickCard', index: i };
     }
 
-    // Tooltip for whatever the pointer rests on.
+    // Tooltip. On touch there is no hover, so an armed card shows its own card
+    // back instead — otherwise the Leaf Mode text is unreachable on a phone.
     const hovered = this.cardRects.findIndex((r) => pointInRect(p.x, p.y, r));
     if (hovered >= 0 && input.selectedCard === null) {
       this.drawCardTooltip(c, state, hovered);
+    } else if (input.selectedCard !== null && LAYOUT.mode === 'portrait') {
+      this.drawCardTooltip(c, state, input.selectedCard);
     }
     return action;
   }
@@ -207,29 +215,36 @@ export class Hud {
   private drawCardTooltip(c: CanvasRenderingContext2D, state: BattleState, index: number): void {
     const def = heroDef(state.cards[index].heroId);
     const r = cardRect(index);
-    const w = 250;
-    const h = def.ultimate ? 116 : 84;
+    const portrait = LAYOUT.mode === 'portrait';
+    const w = portrait ? Math.min(VIEW.w - 16, 400) : 250;
+    const h = (def.ultimate ? 116 : 84) * (portrait ? 1.5 : 1);
     const x = clamp(r.x + r.w / 2 - w / 2, 4, VIEW.w - w - 4);
-    const y = r.y + r.h + 8;
+    // The tray is at the bottom in portrait, so the tooltip goes above it.
+    const y = portrait ? Math.max(8, r.y - h - 10) : r.y + r.h + 8;
     panel(c, { x, y, w, h }, { accent: alpha(def.art.glow ?? UI.gold, 0.6), radius: 10 });
-    text(c, def.name, x + 12, y + 22, { size: 16, weight: 800 });
-    text(c, def.tagline, x + 12, y + 40, { size: 11, color: UI.inkDim });
-    text(c, roleLabel(def.role), x + w - 12, y + 22, {
+    const k = portrait ? 1.5 : 1;
+    text(c, def.name, x + 12, y + 22 * k, { size: 16, weight: 800 });
+    text(c, def.tagline, x + 12, y + 40 * k, { size: 11, color: UI.inkDim, maxWidth: w - 24 });
+    text(c, roleLabel(def.role), x + w - 12, y + 22 * k, {
       size: 11,
       align: 'right',
       color: def.art.glow ?? UI.gold,
       weight: 800,
     });
-    text(c, `${def.hp} HP · ${def.recharge}s recharge`, x + 12, y + 60, {
+    text(c, `${def.hp} HP · ${def.recharge}s recharge`, x + 12, y + 60 * k, {
       size: 11,
       color: UI.inkDim,
     });
     if (def.ultimate) {
       c.save();
-      drawLeafGlyph(c, x + 20, y + 84, 10);
+      drawLeafGlyph(c, x + 20, y + 84 * k - 4, 10 * k);
       c.restore();
-      text(c, def.ultimate.name, x + 36, y + 82, { size: 12, weight: 800, color: UI.leaf });
-      text(c, def.ultimate.description, x + 12, y + 102, { size: 10, color: UI.inkDim, maxWidth: w - 24 });
+      text(c, def.ultimate.name, x + 36 * k, y + 82 * k, { size: 12, weight: 800, color: UI.leaf });
+      text(c, def.ultimate.description, x + 12, y + 102 * k, {
+        size: 10,
+        color: UI.inkDim,
+        maxWidth: w - 24,
+      });
     }
   }
 
@@ -239,9 +254,9 @@ export class Hud {
     input: HudInput,
   ): HudAction | null {
     let action: HudAction | null = null;
-    const shovel: Rect = { x: VIEW.w - 62, y: 8, w: 54, h: 54 };
-    const pause: Rect = { x: VIEW.w - 62, y: 68, w: 54, h: 22 };
-    const speed: Rect = { x: VIEW.w - 62, y: 94, w: 54, h: 22 };
+    const shovel = toolRect('shovel');
+    const pause = toolRect('pause');
+    const speed = toolRect('speed');
 
     // Shovel
     c.save();
@@ -253,15 +268,16 @@ export class Hud {
     c.stroke();
     c.translate(shovel.x + shovel.w / 2, shovel.y + shovel.h / 2);
     c.rotate(-0.5);
+    const sk = shovel.h / 54;
     c.fillStyle = '#8d6e63';
-    roundRect(c, -2.5, -16, 5, 20, 2);
+    roundRect(c, -2.5 * sk, -16 * sk, 5 * sk, 20 * sk, 2 * sk);
     c.fill();
     c.fillStyle = '#b0bec5';
     c.beginPath();
-    c.moveTo(-8, 4);
-    c.lineTo(8, 4);
-    c.lineTo(6, 16);
-    c.lineTo(-6, 16);
+    c.moveTo(-8 * sk, 4 * sk);
+    c.lineTo(8 * sk, 4 * sk);
+    c.lineTo(6 * sk, 16 * sk);
+    c.lineTo(-6 * sk, 16 * sk);
     c.closePath();
     c.fill();
     c.restore();
@@ -278,7 +294,7 @@ export class Hud {
       c.strokeStyle = 'rgba(120,150,210,0.35)';
       c.lineWidth = 1.5;
       c.stroke();
-      text(c, label, rect.x + rect.w / 2, rect.y + 15, {
+      text(c, label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 5, {
         size: 12,
         align: 'center',
         weight: 800,
@@ -296,92 +312,134 @@ export class Hud {
     input: HudInput,
   ): HudAction | null {
     let action: HudAction | null = null;
-    const y = VIEW.h - 70;
+    const portrait = LAYOUT.mode === 'portrait';
+    const top = BOTTOM.top;
 
     c.fillStyle = 'rgba(6,9,18,0.72)';
-    c.fillRect(0, y, VIEW.w, 70);
+    c.fillRect(0, top, VIEW.w, VIEW.h - top);
     c.strokeStyle = 'rgba(120,150,210,0.22)';
     c.lineWidth = 1;
     c.beginPath();
-    c.moveTo(0, y);
-    c.lineTo(VIEW.w, y);
+    c.moveTo(0, top);
+    c.lineTo(VIEW.w, top);
     c.stroke();
 
-    // Leaf inventory — click one to pick it up, then drop it on a hero.
-    // Leaves cap at 9 (see doCollect), so the row is reserved out to its full
-    // width and the overdrive meter starts past it; otherwise a banked sixth
-    // leaf sits on top of the meter and one click fires both.
-    text(c, 'LEAVES', LEAF_ROW_X, y + 22, { size: 11, color: UI.inkDim, weight: 800 });
-    for (let i = 0; i < Math.max(3, state.leaves); i++) {
-      const r: Rect = { x: LEAF_ROW_X + i * LEAF_SLOT_PITCH, y: y + 30, w: 30, h: 30 };
-      const filled = i < state.leaves;
+    // Leaf bank. In landscape this is a row of individually tappable slots; on
+    // a phone nine slots cannot each reach a usable size (20 + 9*84 > 720), and
+    // a mis-tap here spends a Leaf — so it becomes one button with a count.
+    const leaf = BOTTOM.leaf;
+    if (portrait) {
+      const hot = pointInRect(p.x, p.y, leaf);
       c.save();
-      c.globalAlpha = filled ? 1 : 0.22;
-      roundRect(c, r.x, r.y, r.w, r.h, 8);
-      c.fillStyle = filled ? 'rgba(60,120,70,0.35)' : 'rgba(255,255,255,0.05)';
+      roundRect(c, leaf.x, leaf.y, leaf.w, leaf.h, 14);
+      c.fillStyle = state.leaves > 0 ? 'rgba(60,120,70,0.4)' : 'rgba(255,255,255,0.05)';
       c.fill();
-      c.strokeStyle = filled ? UI.leaf : 'rgba(255,255,255,0.2)';
-      c.lineWidth = 1.5;
+      c.strokeStyle = state.leaves > 0 ? UI.leaf : 'rgba(255,255,255,0.18)';
+      c.lineWidth = hot && state.leaves > 0 ? 3 : 2;
       c.stroke();
-      drawLeafGlyph(c, r.x + 15, r.y + 15, 10);
+      c.globalAlpha = state.leaves > 0 ? 1 : 0.3;
+      drawLeafGlyph(c, leaf.x + leaf.w / 2, leaf.y + leaf.h / 2 - 6, 22);
       c.restore();
-      if (filled && pointInRect(p.x, p.y, r) && p.pressed) action = { kind: 'pickLeaf' };
+      text(c, `x${state.leaves}`, leaf.x + leaf.w / 2, leaf.y + leaf.h - 8, {
+        size: 12,
+        align: 'center',
+        weight: 800,
+        color: state.leaves > 0 ? UI.ink : UI.inkDim,
+      });
+      if (state.leaves > 0 && pointInRect(p.x, p.y, leaf) && p.pressed) {
+        action = { kind: 'pickLeaf' };
+      }
+    } else {
+      text(c, 'LEAVES', leaf.x, top + 22, { size: 11, color: UI.inkDim, weight: 800 });
+      for (let i = 0; i < Math.min(MAX_LEAVES, Math.max(3, state.leaves)); i++) {
+        const r: Rect = { x: leaf.x + i * (leaf.w + 4), y: leaf.y, w: leaf.w, h: leaf.h };
+        const filled = i < state.leaves;
+        c.save();
+        c.globalAlpha = filled ? 1 : 0.22;
+        roundRect(c, r.x, r.y, r.w, r.h, 8);
+        c.fillStyle = filled ? 'rgba(60,120,70,0.35)' : 'rgba(255,255,255,0.05)';
+        c.fill();
+        c.strokeStyle = filled ? UI.leaf : 'rgba(255,255,255,0.2)';
+        c.lineWidth = 1.5;
+        c.stroke();
+        drawLeafGlyph(c, r.x + r.w / 2, r.y + r.h / 2, 10);
+        c.restore();
+        if (filled && pointInRect(p.x, p.y, r) && p.pressed) action = { kind: 'pickLeaf' };
+      }
     }
 
-    // Overdrive
-    const odRect: Rect = { x: OVERDRIVE_X, y: y + 34, w: 210, h: 22 };
+    // Overdrive. The hit rect is finger-sized in portrait; the bar is drawn
+    // smaller inside it.
+    const od = BOTTOM.od;
+    const bar: Rect = portrait
+      ? { x: od.x + 8, y: od.y + 26, w: od.w - 16, h: 36 }
+      : od;
     const full = state.overdrive >= 1;
-    text(c, 'OVERDRIVE', OVERDRIVE_X, y + 24, { size: 11, color: UI.inkDim, weight: 800 });
-    meter(
-      c,
-      odRect,
-      state.overdrive,
-      full ? UI.gold : '#6be3ff',
-      full ? 'UNLEASH EVERYTHING  ·  SPACE' : `${Math.floor(state.overdrive * 100)}%`,
-    );
-    if (full) {
-      const pulse = 0.4 + Math.sin(input.time * 7) * 0.3;
-      c.strokeStyle = alpha(UI.gold, pulse);
-      c.lineWidth = 3;
-      roundRect(c, odRect.x - 2, odRect.y - 2, odRect.w + 4, odRect.h + 4, 13);
-      c.stroke();
-    }
-    if (full && pointInRect(p.x, p.y, odRect) && p.released) action = { kind: 'overdrive' };
-
-    // Wave progress — or the survival clock in modes without a wave list.
-    const waveRect: Rect = { x: VIEW.w - 440, y: y + 34, w: 420, h: 22 };
-    const override = input.progressOverride;
-    text(c, override?.caption ?? 'WAVE PROGRESS', VIEW.w - 440, y + 24, {
+    text(c, 'OVERDRIVE', od.x, portrait ? od.y + 18 : top + 24, {
       size: 11,
       color: UI.inkDim,
       weight: 800,
     });
     meter(
       c,
-      waveRect,
+      bar,
+      state.overdrive,
+      full ? UI.gold : '#6be3ff',
+      full
+        ? portrait
+          ? 'UNLEASH EVERYTHING'
+          : 'UNLEASH EVERYTHING  ·  SPACE'
+        : `${Math.floor(state.overdrive * 100)}%`,
+    );
+    if (full) {
+      const pulse = 0.4 + Math.sin(input.time * 7) * 0.3;
+      c.strokeStyle = alpha(UI.gold, pulse);
+      c.lineWidth = 3;
+      roundRect(c, bar.x - 2, bar.y - 2, bar.w + 4, bar.h + 4, bar.h / 2 + 2);
+      c.stroke();
+    }
+    if (full && pointInRect(p.x, p.y, od) && p.released) action = { kind: 'overdrive' };
+
+    // Wave / survival meter. In portrait it lives in the top bar, clear of the
+    // overdrive hit rect — they overlap if both sit in the bottom bar.
+    const wave = BOTTOM.wave;
+    const override = input.progressOverride;
+    text(c, override?.caption ?? 'WAVE PROGRESS', wave.x, wave.y - 10, {
+      size: 11,
+      color: UI.inkDim,
+      weight: 800,
+    });
+    meter(
+      c,
+      wave,
       override ? override.ratio : state.progress,
       override ? UI.gold : UI.danger,
       override?.label,
     );
     if (!override) {
-      // Flag markers for huge waves.
       c.save();
       c.fillStyle = alpha('#ffffff', 0.8);
       for (let i = 0; i < 4; i++) {
-        const fx = waveRect.x + ((i + 1) / 4) * waveRect.w - 3;
-        c.fillRect(fx, waveRect.y - 4, 2, waveRect.h + 8);
+        const fx = wave.x + ((i + 1) / 4) * wave.w - 3;
+        c.fillRect(fx, wave.y - 4, 2, wave.h + 8);
       }
       c.restore();
     }
 
+    // Menace (Versus). Sits above the villain strip in portrait, where the
+    // bottom bar has no spare width.
     if (input.villainSide) {
-      text(c, `MENACE ${Math.floor(state.menace)}`, VIEW.w / 2, y + 24, {
+      const mx = portrait ? VIEW.w / 2 : VIEW.w / 2;
+      const my = portrait ? VERSUS.stripTop - 12 : top + 24;
+      text(c, `MENACE ${Math.floor(state.menace)}`, mx, my, {
         size: 13,
         align: 'center',
         color: UI.danger,
         weight: 800,
       });
-      meter(c, { x: VIEW.w / 2 - 90, y: y + 34, w: 180, h: 18 }, state.menace / 600, UI.danger);
+      if (!portrait) {
+        meter(c, { x: VIEW.w / 2 - 90, y: top + 34, w: 180, h: 18 }, state.menace / 600, UI.danger);
+      }
     }
 
     return action;
@@ -510,13 +568,15 @@ export class Hud {
     const alphaV = t > 0.8 ? (1 - t) * 5 : Math.min(1, t * 2.2);
     c.save();
     c.globalAlpha = alphaV;
+    const midY = BOARD.y + (state.rows * BOARD.cellH) / 2;
     c.fillStyle = 'rgba(120,0,20,0.35)';
-    c.fillRect(0, 250, VIEW.w, 96);
-    text(c, 'A HUGE WAVE OF VILLAINS IS APPROACHING', VIEW.w / 2, 310, {
-      size: 34,
+    c.fillRect(0, midY - 56, VIEW.w, 112);
+    text(c, 'A HUGE WAVE OF VILLAINS IS APPROACHING', VIEW.w / 2, midY + 12, {
+      size: LAYOUT.mode === 'portrait' ? 17 : 34,
       align: 'center',
       weight: 800,
       color: '#ffdede',
+      maxWidth: VIEW.w - 40,
     });
     c.restore();
   }

@@ -24,7 +24,7 @@ Everything else in this document follows from that one rule.
 | `src/content/` | Pure data: heroes, villains, worlds, levels, schemes. |
 | `src/net/` | Transport interface, loopback implementations, the `Match` driver. |
 | `src/ai/` | The villain Director — a command producer, nothing more. |
-| `src/render/` | Canvas painters: backdrops, characters, effects, board. |
+| `src/render/` | Canvas painters plus `layout.ts`, which owns both orientation profiles. |
 | `src/ui/` | Immediate-mode widgets and the battle HUD. |
 | `src/screens/` | Menu, world map, deck picker, battle, versus setup, codex. |
 | `src/app/` | Canvas shell: scaling, pointer normalisation, screen stack. |
@@ -92,10 +92,33 @@ Levels are generated from a per-world threat curve (`src/content/levels.ts`)
 seeded by level id, so the campaign scales to 40 stages without thousands of
 lines of hand-authored wave data, and every player sees the same stage 3-4.
 
+## Layout: two profiles
+
+`src/render/layout.ts` holds two layout profiles and switches between them on
+resize:
+
+| Profile | Logical view | Used for |
+| --- | --- | --- |
+| `landscape` | 1280×720 | desktop, and a phone held sideways |
+| `portrait` | 720×H | a phone held upright; H tracks the device aspect, quantised to 32px and clamped to 1152–1600 |
+
+In portrait the board keeps its horizontal lanes but takes the full width
+(9 columns of 70px), the card tray moves to the bottom as two rows of five, the
+wave meter moves into the top bar, and controls grow to a ~84px logical touch
+target (44pt at the 0.54 phone scale).
+
+Every layout value is a mutable object reassigned by `configureLayout()`, so
+consumers just read it at draw time. **The rule that keeps this working: nothing
+in `src/ui`, `src/render` or `src/screens` may capture a layout-derived value at
+module scope** — a module-level `const` is evaluated once at import and can
+never be corrected. `src/dev/simSmoke.ts` asserts the landscape profile is
+byte-identical to the original hand-tuned constants, and that in portrait, on
+four device sizes, every control is on screen, finger-sized, and non-overlapping.
+
 ## Rendering
 
-Everything is drawn procedurally into a 2D canvas at a fixed logical
-1280×720, letterboxed to any window or device:
+Everything is drawn procedurally into a 2D canvas, letterboxed to any window or
+device:
 
 - **Backdrops** paint sky, skyline and ground once into an offscreen canvas per
   world and blit it; only weather and lighting are per-frame.

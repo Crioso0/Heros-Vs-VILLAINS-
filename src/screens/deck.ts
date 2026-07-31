@@ -6,7 +6,7 @@ import { worldDef } from '../content/worlds';
 import { backdropLayer } from '../render/backdrops';
 import { drawHero } from '../render/characters';
 import { drawLeafGlyph } from '../render/renderer';
-import { VIEW } from '../render/layout';
+import { LAYOUT, VIEW } from '../render/layout';
 import { alpha, roundRect, UI } from '../render/palette';
 import type { HeroId, LevelDef } from '../sim/types';
 import { button, panel, paragraph, text } from '../ui/widgets';
@@ -20,6 +20,8 @@ export class DeckScreen implements Screen {
   private deck: HeroId[] = [];
   private roster: HeroId[];
   private detail: HeroId | null = null;
+  /** Portrait shows the detail card as a tap-dismissed modal, not a dock. */
+  private detailOpen = false;
 
   constructor(
     private app: App,
@@ -50,20 +52,29 @@ export class DeckScreen implements Screen {
     c.fillRect(0, 0, VIEW.w, VIEW.h);
 
     const p = this.app.pointer;
+    const portrait = LAYOUT.mode === 'portrait';
 
-    text(c, 'CHOOSE YOUR ROSTER', 40, 56, { size: 30, weight: 800 });
+    text(c, 'CHOOSE YOUR ROSTER', portrait ? VIEW.w / 2 : 40, 56, {
+      size: portrait ? 18 : 30,
+      weight: 800,
+      align: portrait ? 'center' : 'left',
+    });
     text(
       c,
       `${world.name} · ${this.level.name} · ${this.deck.length}/${this.level.maxDeck} slots`,
-      40,
-      80,
-      { size: 14, color: UI.inkDim },
+      portrait ? VIEW.w / 2 : 40,
+      portrait ? 84 : 80,
+      { size: portrait ? 10 : 14, color: UI.inkDim, align: portrait ? 'center' : 'left' },
     );
 
-    // Selected deck strip
-    panel(c, { x: 40, y: 98, w: VIEW.w - 80, h: 128 }, { radius: 12 });
+    // Selected deck strip. 10 slots in a row is 1008px wide, so portrait wraps
+    // into 2 rows of 5 — which is exactly maxDeck's hard cap.
+    const stripH = portrait ? 268 : 128;
+    panel(c, { x: portrait ? 16 : 40, y: 98, w: portrait ? VIEW.w - 32 : VIEW.w - 80, h: stripH }, { radius: 12 });
     for (let i = 0; i < this.level.maxDeck; i++) {
-      const r: Rect = { x: 58 + i * 96, y: 116, w: 86, h: 92 };
+      const r: Rect = portrait
+        ? { x: 26 + (i % 5) * 138, y: 112 + Math.floor(i / 5) * 128, w: 128, h: 116 }
+        : { x: 58 + i * 96, y: 116, w: 86, h: 92 };
       const id = this.deck[i];
       const forced = !!id && (this.level.forced ?? []).includes(id);
       c.save();
@@ -85,7 +96,7 @@ export class DeckScreen implements Screen {
           act: 0,
           hurt: 0,
           ult: 0,
-          height: 74,
+          height: r.h * 0.8,
           facing: 1,
         });
         c.restore();
@@ -106,11 +117,11 @@ export class DeckScreen implements Screen {
     }
 
     // Roster grid
-    const cols = 9;
-    const cardW = 86;
-    const cardH = 104;
-    const gridX = 40;
-    const gridY = 248;
+    const cols = portrait ? 6 : 9;
+    const cardW = portrait ? 108 : 86;
+    const cardH = portrait ? 118 : 104;
+    const gridX = portrait ? 11 : 40;
+    const gridY = portrait ? 380 : 248;
     for (let i = 0; i < this.roster.length; i++) {
       const id = this.roster[i];
       const def = heroDef(id);
@@ -122,6 +133,7 @@ export class DeckScreen implements Screen {
         w: cardW,
         h: cardH,
       };
+      if (r.y + r.h > VIEW.h - (portrait ? 130 : 250)) continue;
       const inDeck = this.deck.includes(id);
       const hot = pointInRect(p.x, p.y, r);
 
@@ -138,7 +150,7 @@ export class DeckScreen implements Screen {
         act: 0,
         hurt: 0,
         ult: 0,
-        height: 78,
+        height: r.h * 0.75,
         facing: 1,
       });
       c.restore();
@@ -163,17 +175,27 @@ export class DeckScreen implements Screen {
       roundRect(c, r.x, r.y, r.w, r.h, 9);
       c.stroke();
 
-      if (hot) this.detail = id;
-      if (hot && p.released && !inDeck && this.deck.length < this.level.maxDeck) {
-        this.deck.push(id);
-        sfx.play('plant');
+      // Hover does not exist on touch, so in portrait the first tap selects the
+      // hero for the detail card and adds it; the card is dismissed by tapping
+      // anywhere else.
+      if (hot && !portrait) this.detail = id;
+      if (hot && p.released) {
+        this.detail = id;
+        this.detailOpen = portrait;
+        if (!inDeck && this.deck.length < this.level.maxDeck) {
+          this.deck.push(id);
+          sfx.play('plant');
+        }
       }
     }
 
     // Detail panel
-    if (this.detail) {
+    if (this.detail && (!portrait || this.detailOpen)) {
       const def = heroDef(this.detail);
-      const r: Rect = { x: VIEW.w - 360, y: VIEW.h - 236, w: 320, h: 196 };
+      const r: Rect = portrait
+        ? { x: 16, y: VIEW.h / 2 - 170, w: VIEW.w - 32, h: 340 }
+        : { x: VIEW.w - 360, y: VIEW.h - 236, w: 320, h: 196 };
+      if (portrait && p.released && !pointInRect(p.x, p.y, r)) this.detailOpen = false;
       panel(c, r, { accent: alpha(def.art.glow ?? UI.gold, 0.7), radius: 12 });
       text(c, def.name, r.x + 18, r.y + 30, { size: 22, weight: 800 });
       text(c, `${def.cost} solar · ${def.hp} HP · ${def.recharge}s`, r.x + 18, r.y + 50, {
@@ -181,42 +203,42 @@ export class DeckScreen implements Screen {
         color: UI.inkDim,
       });
       paragraph(c, def.tagline, r.x + 18, r.y + 72, r.w - 36, { size: 13 });
+      const ultY = portrait ? 190 : 110;
       if (def.ultimate) {
-        drawLeafGlyph(c, r.x + 26, r.y + 110, 11);
-        text(c, def.ultimate.name, r.x + 44, r.y + 115, {
+        drawLeafGlyph(c, r.x + 26, r.y + ultY, 11);
+        text(c, def.ultimate.name, r.x + 44, r.y + ultY + 5, {
           size: 14,
           weight: 800,
           color: UI.leaf,
         });
-        paragraph(c, def.ultimate.description, r.x + 18, r.y + 138, r.w - 36, { size: 12 });
+        paragraph(c, def.ultimate.description, r.x + 18, r.y + ultY + 34, r.w - 36, { size: 12 });
       } else {
-        paragraph(c, 'Single-use. No Leaf Mode.', r.x + 18, r.y + 116, r.w - 36, { size: 12 });
+        paragraph(c, 'Single-use. No Leaf Mode.', r.x + 18, r.y + ultY + 6, r.w - 36, { size: 12 });
       }
     }
 
     // Actions
     const canStart = this.deck.length > 0;
-    if (button(c, p, { x: 40, y: VIEW.h - 76, w: 130, h: 48 }, 'BACK')) {
+    const act = (i: number, w: number): Rect =>
+      portrait
+        ? { x: [16, 232, 464][i], y: VIEW.h - 104, w: [200, 216, 240][i], h: 84 }
+        : { x: [40, 184, 348][i], y: VIEW.h - 76, w, h: 48 };
+    if (button(c, p, act(0, 130), 'BACK')) {
       this.app.setScreen(
         this.versus ? new MenuScreen(this.app) : new MapScreen(this.app),
       );
     }
-    if (
-      button(c, p, { x: 184, y: VIEW.h - 76, w: 150, h: 48 }, 'AUTO-FILL', { small: true })
-    ) {
+    if (button(c, p, act(1, 150), 'AUTO-FILL', { small: true })) {
       for (const id of this.roster) {
         if (this.deck.length >= this.level.maxDeck) break;
         if (!this.deck.includes(id)) this.deck.push(id);
       }
     }
     if (
-      button(
-        c,
-        p,
-        { x: 348, y: VIEW.h - 76, w: 200, h: 48 },
-        canStart ? 'START' : 'PICK A HERO',
-        { disabled: !canStart, accent: UI.leaf },
-      )
+      button(c, p, act(2, 200), canStart ? 'START' : 'PICK A HERO', {
+        disabled: !canStart,
+        accent: UI.leaf,
+      })
     ) {
       this.app.progress.rememberDeck(this.level.id, this.deck);
       sfx.play('click');
